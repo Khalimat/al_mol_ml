@@ -70,7 +70,7 @@ SPLIT = {'TTS': TTSSplitter,
 
 class SCAMsPipeline:
     def __init__(self, study_name, datasets_path,
-                 ID_name='ID', iterations=1,
+                 ID_name='ID', iterations=10,
                  validation_name='test_DLS.csv',
                  X_column_name='Smiles String',
                  Y_column_name='agg?'):
