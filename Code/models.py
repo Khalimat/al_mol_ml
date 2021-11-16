@@ -298,14 +298,11 @@ class ALModel(Model):
         performance_test_l[np.isnan(performance_test_l)] = 0
         np_test_per_init = pd.DataFrame(performance_test_l)
         np_test_per_init.to_csv(self.results_dir / 'test_initial_stats.csv')
-        plt.plot(performance_test_l.T[0], label='Test, initial')
 
         performance_test_l_m = savgol_filter(performance_test_l.T, 7, 3)
         performance_test_l_m = performance_test_l_m.T
         np_test_per_smoothed = pd.DataFrame(performance_test_l_m)
         np_test_per_smoothed.to_csv(self.results_dir / 'test_smoothed_stats.csv')
-        plt.plot(performance_test_l_m.T[0], label='Test, smoothed')
-        plt.savefig('stats_{}.png'.format(self.iteration))
         self.test_performance = list(np.max(np.array(performance_test_l), axis=0))
 
         self.test_performance = pd.DataFrame([self.test_performance], index=["test performance"],
@@ -317,14 +314,11 @@ class ALModel(Model):
         performance_validation_l[np.isnan(performance_validation_l)] = 0
         np_val_per_init = pd.DataFrame(performance_validation_l)
         np_val_per_init.to_csv(self.results_dir / 'validation_initial_stats.csv')
-        plt.plot(performance_validation_l.T[0], label='Validation, initial')
         performance_validation_l = savgol_filter(performance_validation_l.T, 7, 2)
         performance_validation_l = performance_validation_l.T
 
         np_val_per_smoothed = pd.DataFrame(performance_validation_l)
         np_val_per_smoothed.to_csv(self.results_dir / 'validation_smoothed_stats.csv')
-        plt.plot(performance_validation_l.T[0], label='Validation, smoothed')
-        plt.savefig(self.results_dir / 'results.png')
         self.validation_performance = list(np.max(np.array(performance_validation_l), axis=0))
         self.validation_performance = pd.DataFrame([self.validation_performance], index=["validation performance"],
                                               columns=['AUC lower estimate', 'AUC',
