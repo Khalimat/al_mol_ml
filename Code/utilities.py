@@ -389,3 +389,7 @@ def calc_auc_ci(y_true, y_pred, alpha=0.95):
 
     ci[ci > 1] = 1
     return auc, ci
+
+perf_columns = ['AUC lower estimate', 'AUC',
+               'AUC upper estimate', 'accuracy',
+               'F1', 'MCC']

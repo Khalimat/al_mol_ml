@@ -68,10 +68,11 @@ SPLIT = {'TTS': TTSSplitter,
          'SS': SSplitter,
          'B': BSplitter}
 
+
 class SCAMsPipeline:
     def __init__(self, study_name, datasets_path,
                  ID_name='ID', iterations=10,
-                 validation_name='test_DLS.csv',
+                 test_name='test_DLS.csv',
                  X_column_name='Smiles String',
                  Y_column_name='agg?'):
         self.iterations = iterations
@@ -83,8 +84,10 @@ class SCAMsPipeline:
 
         self.results_dir = Path.cwd().parents[0] / 'Results' / self.study_name
 
-        train_test_dataset = pd.read_csv(file_doesnot_exist(datasets_path, dataset_name))
-        train_validation_dataset = pd.read_csv(file_doesnot_exist(datasets_path, validation_name))
+        test_dataset = pd.read_csv(file_doesnot_exist(datasets_path,
+                                                            test_name))
+        train_validation_dataset = pd.read_csv(file_doesnot_exist(datasets_path,
+                                                                  dataset_name))
         if Path.is_dir(self.results_dir):
             out_srt = input('The path exists. Do you want to delete the existing path and create a new? Please, enter yes or no: ')
             delete_existing_path = str2bool(out_srt)
@@ -95,10 +98,10 @@ class SCAMsPipeline:
                 self.results_dir = Path.cwd() / 'Results' / new_study
         Path.mkdir(self.results_dir)
 
-        self.train_test_dataset = Dataset(train_test_dataset,
-                                          ID_name, X_column_name, Y_column_name)
-        self.validation_dataset = Dataset(train_validation_dataset,
-                                          ID_name, X_column_name, Y_column_name)
+        self.test_dataset = Dataset(test_dataset, ID_name,
+                                    X_column_name, Y_column_name)
+        self.train_validation_dataset = Dataset(train_validation_dataset,
+                                                ID_name, X_column_name, Y_column_name)
         self.DeepSCAMs_non_AL_res = None
         self.TF_non_AL_res = None
         self.TF_AL_res = None
@@ -109,8 +112,11 @@ class SCAMsPipeline:
         Run the pipeline
         """
         for i in range(self.iterations):
-            fold = Run(i, self.validation_dataset.X, self.validation_dataset.Y,
-                       self.train_test_dataset, self.splitter,
+            # fold = Run(i, self.validation_dataset.X, self.validation_dataset.Y,
+            #            self.test_dataset, self.splitter,
+            #            self.sampling, self.run_sampling, self.results_dir)
+            fold = Run(i, self.test_dataset.X, self.test_dataset.Y,
+                       self.train_validation_dataset, self.splitter,
                        self.sampling, self.run_sampling, self.results_dir)
             self.DeepSCAMs_non_AL_res = self.make_df_with_stats(fold.perf_stats_deepscams_non_AL, self.DeepSCAMs_non_AL_res)
             self.TF_non_AL_res = self.make_df_with_stats(fold.perf_stats_tensorflow_non_AL, self.TF_non_AL_res)
@@ -145,21 +151,25 @@ class SCAMsPipeline:
 
 
 class Run:
-    def __init__(self, iteration, X_validation,
-                 Y_validation, test_train_to_split,
+    # i, self.test_dataset.X, self.test_dataset.Y,
+    # self.train_validation_dataset, self.splitter,
+    # self.sampling, self.run_sampling, self.results_dir
+    def __init__(self, iteration, X_test,
+                 Y_test, train_validation_to_split,
                  splitter, sampling, run_sampling,
-                 results_dir):
+                 results_dir_par):
         self.iteration = iteration
         self.X_train = None
         self.Y_train = None
-        self.X_test = None
-        self.Y_test = None
-        self.X_validation = X_validation
-        self.Y_validation = Y_validation
-        self.test_train_to_split = test_train_to_split
+        self.X_validation = None
+        self.Y_validation = None
+        self.X_test = X_test
+        self.Y_test = Y_test
+        self.train_validation_to_split = train_validation_to_split
         self.splitter = splitter
         self.run_sampling = run_sampling
-        self.results_dir = results_dir
+        self.results_dir = results_dir_par / str(self.iteration)
+        self.make_run_directory()
         self.sampling = sampling
         self.perf_stats_deepscams_non_AL = None
         self.perf_stats_tensorflow_non_AL = None
@@ -174,14 +184,29 @@ class Run:
         end = time.time()
         print('The run {} took {} minutes'.format(self.iteration, int((end - start)/60)))
 
+    def make_run_directory(self):
+        if Path.is_dir(self.results_dir):
+            out_srt = input('The path exists. Do you want to delete the existing path and create a new? Please, enter yes or no: ')
+            delete_existing_path = str2bool(out_srt)
+            if delete_existing_path:
+                rm_tree(self.results_dir)
+                Path.mkdir(self.results_dir)
+        else:
+            Path.mkdir(self.results_dir)
+
+
     def run_split(self):
         train_test = dataset_to_splitter(self.splitter,
-                                         self.test_train_to_split,
+                                         self.train_validation_to_split,
                                          '1')
         self.X_train = train_test.X_train
+        pd.DataFrame(self.X_train).to_csv(self.results_dir / 'X_train.csv')
         self.Y_train = train_test.Y_train
-        self.X_test = train_test.X_test
-        self.Y_test = train_test.Y_test
+        pd.DataFrame(self.Y_train).to_csv(self.results_dir / 'Y_train.csv')
+        self.X_validation = train_test.X_test
+        pd.DataFrame(self.X_validation).to_csv(self.results_dir / 'X_validation.csv')
+        self.Y_validation = train_test.Y_test
+        pd.DataFrame(self.Y_validation).to_csv(self.results_dir / 'Y_validation.csv')
 
     def run_non_al(self):
         if self.run_sampling:
@@ -220,7 +245,6 @@ class Run:
         self.perf_stats_tensorflow_AL = pd.DataFrame([[self.iteration] + TensorFlowAL.validation_performance.iloc[0].tolist() +
                                                      TensorFlowAL.test_performance.iloc[0].tolist()],
                                                      columns=col_statis)
-
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ from validation import Validation
 from pathlib import Path
 
 
-from utilities import str2bool, rm_tree
+from utilities import str2bool, rm_tree, perf_columns
 
 
 class Model(ABC):
@@ -172,6 +172,7 @@ class TensorFlowModel(Model):
         test_performance = Validation(self.TFModel, X_test,
                                       self.Y_test, 'Test').results
         self.test_performance = test_performance
+
         X_validation = self.format_for_model(self.scaler, self.X_validation)
         validation_performance = Validation(self.TFModel,
                                             X_validation, self.Y_validation, 'Validation').results
@@ -198,8 +199,7 @@ class ALModel(Model):
                                 ('tf_mlp', self.model)])
         self.initialize_al()
         self.final_model = None
-        self.results_dir = results_dir / str(self.iteration)
-        self.make_run_directory()
+        self.results_dir = results_dir
         self.run()
 
     @staticmethod
@@ -207,15 +207,6 @@ class ALModel(Model):
         initial_idx = np.random.choice(range(len(X_train)),
                                        size=n_initial, replace=False)
         return initial_idx
-    def make_run_directory(self):
-        if Path.is_dir(self.results_dir):
-            out_srt = input('The path exists. Do you want to delete the existing path and create a new? Please, enter yes or no: ')
-            delete_existing_path = str2bool(out_srt)
-            if delete_existing_path:
-                rm_tree(self.results_dir)
-                Path.mkdir(self.results_dir)
-        else:
-            Path.mkdir(self.results_dir)
 
     @staticmethod
     def gmen_no_nan(list_with_stats):
@@ -285,7 +276,6 @@ class ALModel(Model):
             performance_t_iter_l = performance_t_iter.iloc[0].tolist()
             gmean_test.append(self.gmen_no_nan(performance_t_iter_l))
             performance_test_l.append(performance_t_iter_l)
-            ### Edit ###
 
             performance_v_iter = Validation(learner, self.X_validation,
                                             self.Y_validation, 'Validation').results
@@ -296,34 +286,31 @@ class ALModel(Model):
             performance_validation_l.append(performance_v_iter_l)
         performance_test_l = np.array(performance_test_l)
         performance_test_l[np.isnan(performance_test_l)] = 0
-        np_test_per_init = pd.DataFrame(performance_test_l)
+        np_test_per_init = pd.DataFrame(performance_test_l, columns=perf_columns)
         np_test_per_init.to_csv(self.results_dir / 'test_initial_stats.csv')
 
-        performance_test_l_m = savgol_filter(performance_test_l.T, 7, 3)
-        performance_test_l_m = performance_test_l_m.T
-        np_test_per_smoothed = pd.DataFrame(performance_test_l_m)
-        np_test_per_smoothed.to_csv(self.results_dir / 'test_smoothed_stats.csv')
-        self.test_performance = list(np.max(np.array(performance_test_l), axis=0))
+        # performance_test_l_m = savgol_filter(performance_test_l.T, 7, 3)
+        # performance_test_l_m = performance_test_l_m.T
+        # np_test_per_smoothed = pd.DataFrame(performance_test_l_m, columns=perf_columns)
+        # np_test_per_smoothed.to_csv(self.results_dir / 'test_smoothed_stats.csv')
 
+        self.test_performance = list(np.max(np.array(performance_test_l), axis=0))
         self.test_performance = pd.DataFrame([self.test_performance], index=["test performance"],
-                                              columns=['AUC lower estimate', 'AUC',
-                                                       'AUC upper estimate', 'accuracy',
-                                                       'F1', 'MCC'])
+                                              columns=perf_columns)
 
         performance_validation_l = np.array(performance_validation_l)
         performance_validation_l[np.isnan(performance_validation_l)] = 0
-        np_val_per_init = pd.DataFrame(performance_validation_l)
+        np_val_per_init = pd.DataFrame(performance_validation_l, columns=perf_columns)
         np_val_per_init.to_csv(self.results_dir / 'validation_initial_stats.csv')
-        performance_validation_l = savgol_filter(performance_validation_l.T, 7, 2)
-        performance_validation_l = performance_validation_l.T
 
-        np_val_per_smoothed = pd.DataFrame(performance_validation_l)
-        np_val_per_smoothed.to_csv(self.results_dir / 'validation_smoothed_stats.csv')
+        # performance_validation_l = savgol_filter(performance_validation_l.T, 7, 2)
+        # performance_validation_l = performance_validation_l.T
+        # np_val_per_smoothed = pd.DataFrame(performance_validation_l, columns=perf_columns)
+        # np_val_per_smoothed.to_csv(self.results_dir / 'validation_smoothed_stats.csv')
+
         self.validation_performance = list(np.max(np.array(performance_validation_l), axis=0))
         self.validation_performance = pd.DataFrame([self.validation_performance], index=["validation performance"],
-                                              columns=['AUC lower estimate', 'AUC',
-                                                       'AUC upper estimate', 'accuracy',
-                                                       'F1', 'MCC'])
+                                              columns=perf_columns)
         integral_performace = np.concatenate((performance_test_l, performance_validation_l), axis=1)
         index_max_pef = np.argmax(gmean(integral_performace, axis=1))
         final_X, final_Y = X[0: index_max_pef + self.n_initial, ], Y[0: index_max_pef + self.n_initial, ]
