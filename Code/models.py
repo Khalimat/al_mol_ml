@@ -165,7 +165,7 @@ class TensorFlowModel(Model):
     def train(self):
         self.scaler = self.scaler.fit(self.X_train)
         X_train = self.format_for_model(self.scaler, self.X_train)
-        self.TFModel.fit(X_train, self.Y_train.T)
+        self.TFModel.fit(X_train, self.Y_train.T, epochs=50)
 
     def validation(self):
         X_test = self.format_for_model(self.scaler, self.X_test)
