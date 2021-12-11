@@ -102,21 +102,32 @@ class SCAMsPipeline:
                                     X_column_name, Y_column_name)
         self.train_validation_dataset = Dataset(train_validation_dataset,
                                                 ID_name, X_column_name, Y_column_name)
+        self.train_validation = None
         self.DeepSCAMs_non_AL_res = None
         self.TF_non_AL_res = None
         self.TF_AL_res = None
+        self.train_test = None
+        self.run_split()
         self.run_pipeline()
+
+    def run_split(self):
+        train_validation = dataset_to_splitter(self.splitter,
+                                         self.train_validation_dataset,
+                                         '1')
+        self.train_validation = train_validation
+        pd.DataFrame(train_validation.X_train).to_csv(self.results_dir / 'X_train.csv')
+        pd.DataFrame(train_validation.Y_train).to_csv(self.results_dir / 'Y_train.csv')
+        pd.DataFrame(train_validation.X_test).to_csv(self.results_dir / 'X_validation.csv')
+        pd.DataFrame(train_validation.Y_test).to_csv(self.results_dir / 'Y_validation.csv')
 
     def run_pipeline(self):
         """
         Run the pipeline
         """
+
         for i in range(self.iterations):
-            # fold = Run(i, self.validation_dataset.X, self.validation_dataset.Y,
-            #            self.test_dataset, self.splitter,
-            #            self.sampling, self.run_sampling, self.results_dir)
             fold = Run(i, self.test_dataset.X, self.test_dataset.Y,
-                       self.train_validation_dataset, self.splitter,
+                       self.train_validation, self.splitter,
                        self.sampling, self.run_sampling, self.results_dir)
             self.DeepSCAMs_non_AL_res = self.make_df_with_stats(fold.perf_stats_deepscams_non_AL, self.DeepSCAMs_non_AL_res)
             self.TF_non_AL_res = self.make_df_with_stats(fold.perf_stats_tensorflow_non_AL, self.TF_non_AL_res)
@@ -155,17 +166,17 @@ class Run:
     # self.train_validation_dataset, self.splitter,
     # self.sampling, self.run_sampling, self.results_dir
     def __init__(self, iteration, X_test,
-                 Y_test, train_validation_to_split,
+                 Y_test, train_validation,
                  splitter, sampling, run_sampling,
                  results_dir_par):
         self.iteration = iteration
-        self.X_train = None
-        self.Y_train = None
-        self.X_validation = None
-        self.Y_validation = None
+        self.X_train = train_validation.X_train
+        self.Y_train = train_validation.Y_train
+        self.X_validation = train_validation.X_test
+        self.Y_validation = train_validation.Y_test
         self.X_test = X_test
         self.Y_test = Y_test
-        self.train_validation_to_split = train_validation_to_split
+        # self.train_validation_to_split = train_validation_to_split
         self.splitter = splitter
         self.run_sampling = run_sampling
         self.results_dir = results_dir_par / str(self.iteration)
@@ -176,9 +187,23 @@ class Run:
         self.perf_stats_tensorflow_AL = None
         self.run()
 
+    # def run_split(self):
+    #     train_test = dataset_to_splitter(self.splitter,
+    #                                      self.train_validation_to_split,
+    #                                      '1')
+    #     self.X_train = train_test.X_train
+    #     pd.DataFrame(self.X_train).to_csv(self.results_dir / 'X_train.csv')
+    #     self.Y_train = train_test.Y_train
+    #     pd.DataFrame(self.Y_train).to_csv(self.results_dir / 'Y_train.csv')
+    #     self.X_validation = train_test.X_test
+    #     pd.DataFrame(self.X_validation).to_csv(self.results_dir / 'X_validation.csv')
+    #     self.Y_validation = train_test.Y_test
+    #     pd.DataFrame(self.Y_validation).to_csv(self.results_dir / 'Y_validation.csv')
+
+
     def run(self):
         start = time.time()
-        self.run_split()
+        # self.run_split()
         self.run_non_al()
         self.run_al()
         end = time.time()
@@ -194,19 +219,6 @@ class Run:
         else:
             Path.mkdir(self.results_dir)
 
-
-    def run_split(self):
-        train_test = dataset_to_splitter(self.splitter,
-                                         self.train_validation_to_split,
-                                         '1')
-        self.X_train = train_test.X_train
-        pd.DataFrame(self.X_train).to_csv(self.results_dir / 'X_train.csv')
-        self.Y_train = train_test.Y_train
-        pd.DataFrame(self.Y_train).to_csv(self.results_dir / 'Y_train.csv')
-        self.X_validation = train_test.X_test
-        pd.DataFrame(self.X_validation).to_csv(self.results_dir / 'X_validation.csv')
-        self.Y_validation = train_test.Y_test
-        pd.DataFrame(self.Y_validation).to_csv(self.results_dir / 'Y_validation.csv')
 
     def run_non_al(self):
         if self.run_sampling:
@@ -232,7 +244,7 @@ class Run:
 
     def run_al(self):
         # Edited
-        n_queries = int(self.X_train.shape[0]) - 60
+        n_queries = int(self.X_train.shape[0]) - 11
         TensorFlowAL = ALModel(self.X_train, self.Y_train,
                                self.X_test, self.Y_test,
                                self.X_validation, self.Y_validation,
@@ -241,7 +253,7 @@ class Run:
                                q_strategy=entropy_sampling,
                                iteration=self.iteration)
 
-        TensorFlowAL.final_model.model.save(self.results_dir / 'TF_MLP_AL_{}.h5'.format(self.iteration))
+        # TensorFlowAL.final_model.model.save(self.results_dir / 'TF_MLP_AL_{}.h5'.format(self.iteration))
         self.perf_stats_tensorflow_AL = pd.DataFrame([[self.iteration] + TensorFlowAL.validation_performance.iloc[0].tolist() +
                                                      TensorFlowAL.test_performance.iloc[0].tolist()],
                                                      columns=col_statis)

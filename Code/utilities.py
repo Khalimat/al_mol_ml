@@ -9,25 +9,59 @@ from rdkit import DataStructs
 from rdkit.Chem import AllChem
 from rdkit.ML.Cluster import Butina
 
+from rdkit.Chem import Descriptors, AllChem, MACCSkeys, RDKFingerprint
+
+# def describe(mols):
+#     """
+#     Function from DeepSCAMs approach
+#
+#     Parameters
+#     ----------
+#     mols: list of mol-files
+#
+#     Returns
+#     -------
+#     descrs: list with descriptor
+#             space for molecules
+#     """
+#     featurizer1 = dc.feat.CircularFingerprint()
+#     X1 = featurizer1([m for m in mols])
+#     featurizer2 = dc.feat.RDKitDescriptors()
+#     X2 = featurizer2([m for m in mols])
+#     X = np.hstack((X1, X2))
+#     return X
+
 def describe(mols):
     """
     Function from DeepSCAMs approach
-
     Parameters
     ----------
     mols: list of mol-files
-
     Returns
     -------
     descrs: list with descriptor
             space for molecules
     """
-    featurizer1 = dc.feat.CircularFingerprint()
-    X1 = featurizer1([m for m in mols])
-    featurizer2 = dc.feat.RDKitDescriptors()
-    X2 = featurizer2([m for m in mols])
-    X = np.hstack((X1, X2))
-    return X
+    descr = Descriptors._descList[0:2] + Descriptors._descList[3:]
+    calc = [x[1] for x in descr]
+    descrs = []
+    for mol in mols:
+        fp = AllChem.GetMorganFingerprintAsBitVect(mol, 3, nBits=2048)
+        fp_list = []
+        fp_list.extend(fp.ToBitString())
+        fp_expl = [float(x) for x in fp_list]
+        ds_n = []
+        for d in calc:
+            v = d(mol)
+            if v > np.finfo(np.float32).max:
+                ds_n.append(np.finfo(np.float32).max)
+            else:
+                ds_n.append(np.float32(v))
+
+        descrs += [fp_expl + list(ds_n)]
+
+    return descrs
+
 
 
 def dataset_to_splitter(splitter, dataset, type):

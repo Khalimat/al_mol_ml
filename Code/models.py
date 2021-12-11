@@ -1,10 +1,17 @@
-from abc import ABC
+from numpy.random import seed
+seed(1)
+from tensorflow.random import set_seed
+set_seed(2)
 
-import matplotlib.pyplot as plt
+from abc import ABC
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
+
 from scipy.signal import savgol_filter
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import plot
+
 
 import pandas as pd
 import numpy as np
@@ -16,7 +23,6 @@ import tensorflow as tf
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense, Dropout
 
-from matplotlib.pyplot import plot
 
 #  Save model
 import h5py
@@ -25,6 +31,7 @@ import copy
 
 from validation import Validation
 from pathlib import Path
+
 
 
 from utilities import str2bool, rm_tree, perf_columns
@@ -95,7 +102,7 @@ class DeepSCAMsModel(Model):
 
 
 
-def create_keras_model(shape=2256,
+def create_keras_model(shape=2255,
                        dropout=0.4):
     model = Sequential()
     model.add(Dense(500, input_dim=shape,
@@ -185,7 +192,7 @@ class ALModel(Model):
                  Y_validation, n_queries,
                  results_dir,
                  q_strategy, iteration,
-                 n_initial=50):
+                 n_initial=10):
         super().__init__(X_train, Y_train,
                  X_test, Y_test, X_validation,
                  Y_validation)
@@ -224,6 +231,8 @@ class ALModel(Model):
             initial_idx = self.random_choice(self.X_train, self.n_initial)
 
         X, Y = self.X_train[initial_idx], self.Y_train[initial_idx]
+
+
         X_initial, y_initial = self.X_train[initial_idx], self.Y_train[initial_idx]
         X_pool, y_pool = np.delete(self.X_train, initial_idx, axis=0), \
                          np.delete(self.Y_train, initial_idx, axis=0)
@@ -312,10 +321,14 @@ class ALModel(Model):
         self.validation_performance = pd.DataFrame([self.validation_performance], index=["validation performance"],
                                               columns=perf_columns)
         integral_performace = np.concatenate((performance_test_l, performance_validation_l), axis=1)
-        index_max_pef = np.argmax(gmean(integral_performace, axis=1))
+        index_max_pef = np.argmax(gmean(performance_test_l, axis=1))
         final_X, final_Y = X[0: index_max_pef + self.n_initial, ], Y[0: index_max_pef + self.n_initial, ]
         self.final_model = TensorFlowModel(final_X, final_Y, self.X_test,
-                                           self.Y_test, self.X_validation, self.Y_validation).TFModel
+                                           self.Y_test, self.X_validation, self.Y_validation)
+        print(self.final_model.test_performance)
+        # performance_max_iter = Validation(self.final_model, self.X_test,
+        #                                   self.Y_test, 'Test').results
+        # print(performance_max_iter)
 
         print('Argmax validation', np.argmax(np.array(gmean_validation)))
         print('Argmax test', np.argmax(np.array(gmean_test)))
