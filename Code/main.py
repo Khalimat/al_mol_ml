@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 
 from dataset import Dataset
 from utilities import dataset_to_splitter, str2bool, rm_tree, file_doesnot_exist, sampl
-from splitters import BaseSplitter, TTSSplitter, BSplitter, SSplitter
+from splitters import BaseSplitter, TTSSplitter, BSplitter, SSplitter, AlmostNoValidation
 from models import DeepSCAMsModel, TensorFlowModel,  ALModel
 
 #  Defining variables to automatically run the pipeline
@@ -66,7 +66,8 @@ col_statis = ['Iteration', 'AUC_LB_test', 'AUC_test',
 
 SPLIT = {'TTS': TTSSplitter,
          'SS': SSplitter,
-         'B': BSplitter}
+         'B': BSplitter,
+         'ANV': AlmostNoValidation}
 
 
 class SCAMsPipeline:
@@ -162,9 +163,6 @@ class SCAMsPipeline:
 
 
 class Run:
-    # i, self.test_dataset.X, self.test_dataset.Y,
-    # self.train_validation_dataset, self.splitter,
-    # self.sampling, self.run_sampling, self.results_dir
     def __init__(self, iteration, X_test,
                  Y_test, train_validation,
                  splitter, sampling, run_sampling,
@@ -176,7 +174,6 @@ class Run:
         self.Y_validation = train_validation.Y_test
         self.X_test = X_test
         self.Y_test = Y_test
-        # self.train_validation_to_split = train_validation_to_split
         self.splitter = splitter
         self.run_sampling = run_sampling
         self.results_dir = results_dir_par / str(self.iteration)
@@ -186,19 +183,6 @@ class Run:
         self.perf_stats_tensorflow_non_AL = None
         self.perf_stats_tensorflow_AL = None
         self.run()
-
-    # def run_split(self):
-    #     train_test = dataset_to_splitter(self.splitter,
-    #                                      self.train_validation_to_split,
-    #                                      '1')
-    #     self.X_train = train_test.X_train
-    #     pd.DataFrame(self.X_train).to_csv(self.results_dir / 'X_train.csv')
-    #     self.Y_train = train_test.Y_train
-    #     pd.DataFrame(self.Y_train).to_csv(self.results_dir / 'Y_train.csv')
-    #     self.X_validation = train_test.X_test
-    #     pd.DataFrame(self.X_validation).to_csv(self.results_dir / 'X_validation.csv')
-    #     self.Y_validation = train_test.Y_test
-    #     pd.DataFrame(self.Y_validation).to_csv(self.results_dir / 'Y_validation.csv')
 
 
     def run(self):

@@ -68,11 +68,11 @@ def dataset_to_splitter(splitter, dataset, type):
     """
     Feed the dataset to a chosen splitter
     """
-
     splitted = splitter(dataset.X, dataset.Y,
                         dataset.SMILES,
                         dataset.dataset.mols,
-                        dataset.ID_name, type, 0.3)
+                        dataset.ID_name, type, 0.00000001)
+
     return splitted
 
 

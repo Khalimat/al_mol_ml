@@ -99,3 +99,20 @@ class SSplitter(BaseSplitter):
         self.X_test = X_test
         self.Y_train =Y_train
         self.Y_test = Y_test
+
+
+class AlmostNoValidation(BaseSplitter):
+    def __init__(self, X, Y, SMILES, mols,
+                 ID, type, test_split_r=0.3):
+        super().__init__(X, Y, SMILES, mols,
+                 ID, type, test_split_r=test_split_r)
+
+    def split(self):
+        mask = np.array([False for i in self.Y])
+        mask[np.random.choice(np.where(self.Y == 0)[0])] = True
+        mask[np.random.choice(np.where(self.Y == 1)[0])] = True
+        self.Y_test = self.Y[mask]
+        self.Y_train = self.Y[np.invert(mask)]
+        self.X_test = np.array(self.X)[mask]
+        self.X_train = np.array(self.X)[np.invert(mask)]
+        print(self.X_train.shape)

@@ -298,10 +298,6 @@ class ALModel(Model):
         np_test_per_init = pd.DataFrame(performance_test_l, columns=perf_columns)
         np_test_per_init.to_csv(self.results_dir / 'test_initial_stats.csv')
 
-        # performance_test_l_m = savgol_filter(performance_test_l.T, 7, 3)
-        # performance_test_l_m = performance_test_l_m.T
-        # np_test_per_smoothed = pd.DataFrame(performance_test_l_m, columns=perf_columns)
-        # np_test_per_smoothed.to_csv(self.results_dir / 'test_smoothed_stats.csv')
 
         self.test_performance = list(np.max(np.array(performance_test_l), axis=0))
         self.test_performance = pd.DataFrame([self.test_performance], index=["test performance"],
@@ -312,10 +308,7 @@ class ALModel(Model):
         np_val_per_init = pd.DataFrame(performance_validation_l, columns=perf_columns)
         np_val_per_init.to_csv(self.results_dir / 'validation_initial_stats.csv')
 
-        # performance_validation_l = savgol_filter(performance_validation_l.T, 7, 2)
-        # performance_validation_l = performance_validation_l.T
-        # np_val_per_smoothed = pd.DataFrame(performance_validation_l, columns=perf_columns)
-        # np_val_per_smoothed.to_csv(self.results_dir / 'validation_smoothed_stats.csv')
+
 
         self.validation_performance = list(np.max(np.array(performance_validation_l), axis=0))
         self.validation_performance = pd.DataFrame([self.validation_performance], index=["validation performance"],
@@ -325,13 +318,7 @@ class ALModel(Model):
         final_X, final_Y = X[0: index_max_pef + self.n_initial, ], Y[0: index_max_pef + self.n_initial, ]
         self.final_model = TensorFlowModel(final_X, final_Y, self.X_test,
                                            self.Y_test, self.X_validation, self.Y_validation)
-        print(self.final_model.test_performance)
-        # performance_max_iter = Validation(self.final_model, self.X_test,
-        #                                   self.Y_test, 'Test').results
-        # print(performance_max_iter)
 
-        print('Argmax validation', np.argmax(np.array(gmean_validation)))
-        print('Argmax test', np.argmax(np.array(gmean_test)))
 
 class PipelineSW(Pipeline):
     def fit(self, X, y, sample_weight=None):
