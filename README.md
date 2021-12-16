@@ -59,13 +59,13 @@ Results could be found [here](Description/Update.pdf)
 
 # Folder names
 
-| Sampling           | Dataset  | Split |
-|:-------------:| -----:|-----:|
-| N (No sampling) | SF (SCAMS_filtered.csv) | TTS (train_test_split) | 
-| SMOTE    |   SP1 (SCAMS_balanced_with_positive.csv) | B (split_with_butina) |
+| Sampling           | Dataset  |                             Split |
+|:-------------:| -----:|----------------------------------:|
+| N (No sampling) | SF (SCAMS_filtered.csv) |            TTS (train_test_split) | 
+| SMOTE    |   SP1 (SCAMS_balanced_with_positive.csv) |             B (split_with_butina) |
 | ADASYN  |    SP2 (SCAMS_added_positives_653_1043.csv) | SS (split_with_scaffold_splitter) |
-| CondensedNearestNeighbour (CNN)     |    __ | __ |
-| InstanceHardnessThreshold (IHT)    |    __ | __ |
+| CondensedNearestNeighbour (CNN)     |    __ |        ANV (almost no validation) |
+| InstanceHardnessThreshold (IHT)    |    __ |                                __ |
 
 For example, N_SF_SS stands for run with with no sampling on SCAMS_filtered.csv and scaffold_splitter
 
