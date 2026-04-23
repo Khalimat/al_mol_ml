@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 from rdkit import Chem
-from utilities import describe
+
+from .utilities import describe
 
 
 class Dataset:
-    def __init__(self, dataset,
-                 ID_name, X_column_name,
-                 Y_column_name):
+    def __init__(self, dataset, ID_name, X_column_name, Y_column_name):
         self.dataset = dataset
         self.dataset = self.dataset.set_index([pd.Index(self.dataset[ID_name])])
         self.ID_name = self.dataset[ID_name]
@@ -22,8 +21,7 @@ class Dataset:
 
     def calculate_descriptors(self):
         mol_obj = [Chem.MolFromSmiles(s) for s in self.SMILES]
-        self.dataset['mols'] = self.SMILES.apply(lambda x: Chem.MolFromSmiles(x))
+        self.dataset["mols"] = self.SMILES.apply(lambda x: Chem.MolFromSmiles(x))
         descriptors = describe(mol_obj)
         self.X = descriptors
         self.Y = np.array(self.dataset[self.Y_column_name])
-

@@ -1,6 +1,8 @@
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 import pandas as pd
-from utilities import calc_auc_ci
+
+from .utilities import calc_auc_ci
+
 
 class Validation:
     def __init__(self, model, X, Y, name):
@@ -16,7 +18,11 @@ class Validation:
         y_pred = model.predict(X_test)
         f_one = f1_score(Y_test, y_pred)
         tn, fp, fn, tp = confusion_matrix(Y_test, y_pred).ravel()
-        return f_one, (tp * tn - fp * fn) / ((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) ** 0.5
+        return (
+            f_one,
+            (tp * tn - fp * fn)
+            / ((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) ** 0.5,
+        )
 
     def validate(self, model, X_test, Y_test):
         test_predicted = model.predict_proba(X_test)
@@ -28,8 +34,16 @@ class Validation:
 
     def run(self):
         test_stats = self.validate(self.model, self.X, self.Y)
-        results = pd.DataFrame([test_stats], index=[self.name],
-                                    columns=['AUC lower estimate', 'AUC',
-                                             'AUC upper estimate', 'accuracy',
-                                             'F1', 'MCC'])
-        self.results= results
+        results = pd.DataFrame(
+            [test_stats],
+            index=[self.name],
+            columns=[
+                "AUC lower estimate",
+                "AUC",
+                "AUC upper estimate",
+                "accuracy",
+                "F1",
+                "MCC",
+            ],
+        )
+        self.results = results

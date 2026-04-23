@@ -1,129 +1,114 @@
-# [Some name] a pipeline to compare performance of AL and non-AL models
+# JCIM SCAM Classification Pipeline
 
-## Docker image
-We created a docker image (modified an image published by deepchem) to ensure reproducibility of calculations. Use the following command to pull the image:
-`$ docker pull khalimat/jcim_f_holly`
+Benchmarking pipeline for SCAM classification experiments across classical ML, deep learning, and active learning settings.
 
-The directory with the RP should be mounted to image:
-`$ sudo docker run -it --name jcim -v {directory_w_RP}:/root/mydir khalimat/jcim_f_holly`
+This repository packages a research workflow for comparing sampling strategies and splitting strategies on SCAM datasets, with reproducible result artifacts and visualization notebooks included in the repo.
 
-## Run
+## Project Summary
 
-Example of command to run the pipeline:
+The project evaluates whether training-data sampling can improve the performance of SCAM classification models. It compares:
 
-```$  python main.py -s_n 'N_SF_TTS'```
+- baseline training without sampling
+- over-sampling with `SMOTE` and `ADASYN`
+- under-sampling with `CondensedNearestNeighbour` and `InstanceHardnessThreshold`
+- active learning with entropy-based sample selection
+- multiple dataset variants and train/validation/test split strategies
 
-I used [t-test for means of two independent samples](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind_from_stats.html), since our AL and non-AL models are trained on different data 
-(AL training set is a subset of non-AL training set). 
+The codebase computes molecular descriptors from SMILES strings, trains several model variants, tracks evaluation metrics across repeated runs, and writes per-study result tables for downstream analysis.
 
-# UML
-![UML](Pipeline_UML.jpg?raw=true "Title")
+## Highlights
 
+- packaged Python source under [`jcim/`](jcim)
+- runnable CLI entrypoint via `python -m jcim`
+- benchmark outputs and analysis notebooks included for traceability
+- project metadata and formatter config centralized in [`pyproject.toml`](pyproject.toml)
+- repository cleanup for portfolio-friendly presentation
 
-# Research Summary
+## Repository Layout
 
-**hypothesis** *Training data sampling can significantly improve the performance of SCAM classification models*
+```text
+jcim/          Core pipeline, models, splitters, validation, and utilities
+Datasets/      Input datasets used by the benchmark pipeline
+Results/       Generated experiment outputs and analysis figures
+modAL/         Local modAL code used by the active-learning workflow
+```
 
-**measure of success** We define a data sampling strategy to improve the performance if a machine learning model that includes the sampling strategy has a significantly better performance compared to the same machine learning model but without the sampling strategy. To evaluate such pairs of models, we will
-- keep all other model parameters and pre-processing steps consistent (e.g. dataset, train-test split, parameter optimization strategy, used descriptors, feature selection strategy) 
-- performance metric: ROC AUC, MCC, F1
-- test set: 60-30% training-test split of original data, while ensuring consistent imbalance in test set (stratified) and using scaffold-based group assignment.
-- we will repeat training-test split 10-times and use bonferroni corrected t-test p values to ensure differences are significant.
+## Running The Pipeline
 
-To ensure that our hypothesis is generalizable and not limited to a single use case, we will explore these different scenarios
-- sampling strategies
-  - ADASYN
-  - SMOTE
-  - CondensedNearestNeighbor
-  - ActiveLearning
-- dataset
-   - small Shoichet dataset from Excel sheet
-   - larger Shoichet dataset Excel + large set of positive data from AggAdvisor
-   - dataset from Tropsha SCAMDetective based PubChem
-     - bLactamase https://pubs-acs-org.proxy.lib.duke.edu/doi/suppl/10.1021/acs.jcim.0c00415/suppl_file/ci0c00415_si_002.zip
-     - Cruzain https://pubs-acs-org.proxy.lib.duke.edu/doi/suppl/10.1021/acs.jcim.0c00415/suppl_file/ci0c00415_si_003.zip
-- descriptor
-  - ECFP (Morgan)
-  - RDKit Fingerprint
-- feature processing
-  - none
-  - feature scaling
-- models
-  - TF MLP
-  - DeepSCAMs
+Preferred entrypoint:
 
+```bash
+python -m jcim --study_name N_SF_TTS
+```
 
-# Results
-Results could be found [here](Description/Update.pdf)
+Equivalent console script after installation:
 
+```bash
+jcim --study_name N_SF_TTS
+```
 
-# Folder names
+Optional dataset path override:
 
-| Sampling           | Dataset  |                             Split |
-|:-------------:| -----:|----------------------------------:|
-| N (No sampling) | SF (SCAMS_filtered.csv) |            TTS (train_test_split) | 
-| SMOTE    |   SP1 (SCAMS_balanced_with_positive.csv) |             B (split_with_butina) |
-| ADASYN  |    SP2 (SCAMS_added_positives_653_1043.csv) | SS (split_with_scaffold_splitter) |
-| CondensedNearestNeighbour (CNN)     |    __ |        ANV (almost no validation) |
-| InstanceHardnessThreshold (IHT)    |    __ |                                __ |
+```bash
+python -m jcim --study_name N_SF_TTS --datasets_path ./Datasets
+```
 
-For example, N_SF_SS stands for run with with no sampling on SCAMS_filtered.csv and scaffold_splitter
+Study names follow the pattern:
 
+```text
+<sampling>_<dataset>_<split>
+```
 
-# Other approaches
-## SCAMs detective (SD)
-There are two models presented with SD (**cruzain** and **beta-lactamase**). I made a mistake in the previous email and wrote that there were 4 models, as pbz2-files were not models.
+Examples:
 
+- `N_SF_TTS`: no sampling, `SCAMS_filtered.csv`, train/test split
+- `SMOTE_SP1_B`: SMOTE, balanced-positive dataset, Butina split
+- `ADASYN_SP2_SS`: ADASYN, augmented-positive dataset, scaffold split
 
+## Method Overview
 
-## Results
-I trained in parallel  DC and our models, and visualized the results.
+Pipeline stages:
 
-#### Study 1
+1. Load dataset and held-out test set from `Datasets/`.
+2. Convert SMILES strings into molecular descriptors.
+3. Split train and validation sets with the configured strategy.
+4. Train non-active-learning models.
+5. Train the active-learning model over iterative query rounds.
+6. Evaluate on validation and test sets.
+7. Save run-level metrics and aggregate study outputs into `Results/`.
 
-- **Results on the test set**
- ![Test](Results/Study_1/test.png)
+Tracked metrics include:
 
-- **Results on the validation set**
- ![Validation](Results/Study_1/validation.png)
+- ROC AUC with confidence interval bounds
+- accuracy
+- F1
+- MCC
 
-#### Study 2
-- **Results on the test set**
-![Test](Results/Study_2/test.png)
-  
-- **Results on the validation set**
- ![Validation](Results/Study_2/validation.png)
+## Environment Notes
 
+The repository includes a historical `requirements.txt`, but some chemistry and deep learning dependencies are environment-sensitive. For research reproduction, a containerized environment is still the safest option.
 
-## Visualization
+Existing Docker image reference from the original project:
 
-[Here](Results/Study_1/Prepape_figures.ipynb) is an example of a notebook I wrote to visualise the results. 
+```bash
+docker pull khalimat/jcim_f_holly
+docker run -it --name jcim -v <repo-dir>:/root/mydir khalimat/jcim_f_holly
+```
 
-Conceptually, there are three variant:
-- **Violin plot + Scatter plot**
- ![ViolinScatter](Results/Study_2/F1_validation_all.svg)
-  
-- **Violin plot**
- ![Violin](Results/Study_2/F1_validation_False.svg)
-  
-- **Ridgeline plot** (I assume it is the most informative)
- ![Ridgeline](Results/Study_2/F1_validation_ridgeline.svg)
+## Results And Analysis
 
+Representative outputs and visualizations are committed under [`Results/`](Results). The notebooks used for figure generation remain in the repository for inspection and reproduction, including:
 
+- [Results/Study_1/Study_1_analysis.ipynb](Results/Study_1/Study_1_analysis.ipynb)
+- [Results/Study_2/Study_2_analysis.ipynb](Results/Study_2/Study_2_analysis.ipynb)
+- [Results/Study_3/AA_validation.ipynb](Results/Study_3/AA_validation.ipynb)
 
+Architecture diagram:
 
+![Pipeline UML](Pipeline_UML.jpg)
 
+## Notes
 
-[comment]: <> (# DeepSCAMs validation set ∩ with the training datasets)
-
-[comment]: <> (- I [checked]&#40;/SCAMs/intersection_DeepSCAMs_ds_cruzian.py&#41; the similarity of compounds in the DeepSCAMs validation set &#40;DLS&#41; with the cruzain dataset &#40;used morgan fingerprints&#41;. Here is [the table]&#40;/Similarity/DLS_cruzian.csv&#41;. 17/65 compounds from the DLS dataset have one or more compounds in the cruzain dataset with Tanimoto coefficient &#40;TC&#41; > 0.7.)
-
-[comment]: <> (- Checked the similarity of compounds in the DLS dataset with the beta-lactamase dataset, found 18/65 highly similar compounds. [The resulting table is here]&#40;/Similarity/DLS_beta_lactamase.csv&#41;. Albeit, the performance of the model trained on the beta-lactamase dataset was lower.)
-
-[comment]: <> (- Checked the similarity of compounds in the DLS dataset with the SF dataset, found 2/65 compound with the same TC threshold. [The resulting table is here]&#40;/Similarity/DLS_SCAMS_filtered.csv&#41;.)
-
-[comment]: <> (- Checked SCAMS_added_positives_653_1043.csv vs. DLS. Found 4/64 with the same TC threshold.  [The resulting table is here]&#40;/Similarity/DLS_added_positives_653_1043.csv&#41;)
-
-[comment]: <> (- Checked SCAMS_balanced_with_positive.csv vs. DLS. Found 2/64 with the same TC threshold.  [The resulting table is here]&#40;/Similarity/DLS_SCAMS_balanced_positive.csv&#41;)
-
-
+- This repo is presented as a research engineering project, not a polished production service.
+- Result folders are intentionally kept to show experimental output and analysis artifacts.
+- Some code paths depend on legacy TensorFlow and cheminformatics tooling.

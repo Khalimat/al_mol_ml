@@ -1,15 +1,14 @@
-import deepchem as dc
-import numpy as np
-from pathlib import Path
 import argparse
+from pathlib import Path
 
+import numpy as np
 from scipy import stats
 
 from rdkit import DataStructs
 from rdkit.Chem import AllChem
 from rdkit.ML.Cluster import Butina
 
-from rdkit.Chem import Descriptors, AllChem, MACCSkeys, RDKFingerprint
+from rdkit.Chem import Descriptors
 
 # def describe(mols):
 #     """
@@ -30,6 +29,7 @@ from rdkit.Chem import Descriptors, AllChem, MACCSkeys, RDKFingerprint
 #     X2 = featurizer2([m for m in mols])
 #     X = np.hstack((X1, X2))
 #     return X
+
 
 def describe(mols):
     """
@@ -63,15 +63,19 @@ def describe(mols):
     return descrs
 
 
-
 def dataset_to_splitter(splitter, dataset, type):
     """
     Feed the dataset to a chosen splitter
     """
-    splitted = splitter(dataset.X, dataset.Y,
-                        dataset.SMILES,
-                        dataset.dataset.mols,
-                        dataset.ID_name, type, 0.00000001)
+    splitted = splitter(
+        dataset.X,
+        dataset.Y,
+        dataset.SMILES,
+        dataset.dataset.mols,
+        dataset.ID_name,
+        type,
+        0.00000001,
+    )
 
     return splitted
 
@@ -106,7 +110,9 @@ def butina_cluster(mol_list, cutoff=0.35):
     :return: list with cluster id for every molecule from mol_list
 
     """
-    fp_list = [AllChem.GetMorganFingerprintAsBitVect(m, 3, nBits=2048) for m in mol_list]
+    fp_list = [
+        AllChem.GetMorganFingerprintAsBitVect(m, 3, nBits=2048) for m in mol_list
+    ]
     dists = []
     nfps = len(fp_list)
     for i in range(1, nfps):
@@ -118,6 +124,7 @@ def butina_cluster(mol_list, cutoff=0.35):
         for member in cluster:
             cluster_id_list[member] = idx
     return cluster_id_list
+
 
 def generate_scaffolds(dataset):
     """Returns all scaffolds from the dataset.
@@ -137,7 +144,7 @@ def generate_scaffolds(dataset):
     scaffolds = {}
     data_len = dataset.shape[0]
 
-    for ind, smiles in enumerate(dataset['Smiles String']):
+    for ind, smiles in enumerate(dataset["Smiles String"]):
         scaffold = _generate_scaffold(smiles)
         if scaffold not in scaffolds:
             scaffolds[scaffold] = [ind]
@@ -147,10 +154,13 @@ def generate_scaffolds(dataset):
     # Sort from largest to smallest scaffold sets
     scaffolds = {key: sorted(value) for key, value in scaffolds.items()}
     scaffold_sets = [
-        scaffold_set for (scaffold, scaffold_set) in sorted(
-            scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True)
+        scaffold_set
+        for (scaffold, scaffold_set) in sorted(
+            scaffolds.items(), key=lambda x: (len(x[1]), x[1][0]), reverse=True
+        )
     ]
     return scaffold_sets
+
 
 def _generate_scaffold(smiles, include_chirality=False):
     """
@@ -188,6 +198,7 @@ def _generate_scaffold(smiles, include_chirality=False):
     scaffold = MurckoScaffoldSmiles(mol=mol, includeChirality=include_chirality)
     return scaffold
 
+
 def str2bool(v):
     """
     Transfer string to bool
@@ -196,13 +207,14 @@ def str2bool(v):
     v: str
     """
     if isinstance(v, bool):
-       return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 def rm_tree(pth):
     """
@@ -219,6 +231,7 @@ def rm_tree(pth):
         else:
             rm_tree(child)
     pth.rmdir()
+
 
 def file_doesnot_exist(path, file_name):
     """
@@ -238,9 +251,13 @@ def file_doesnot_exist(path, file_name):
     full_file_path = Path(path) / file_name
     if not full_file_path.is_file():
         raise FileNotFoundError(
-            'File {} not found in location {}. Please, inter valid path and file name'.format(file_name, path))
+            "File {} not found in location {}. Please, inter valid path and file name".format(
+                file_name, path
+            )
+        )
     else:
         return full_file_path
+
 
 def sampl(X_train, Y_train, sampling):
     """Computes midranks.
@@ -311,6 +328,7 @@ def compute_midrank_weight(x, sample_weight):
     T2[J] = T
     return T2
 
+
 def fastDeLong(predictions_sorted_transposed, label_1_count):
     """
     The fast version of DeLong's method for computing the covariance of
@@ -355,6 +373,7 @@ def fastDeLong(predictions_sorted_transposed, label_1_count):
     delongcov = sx / m + sy / n
     return aucs, delongcov
 
+
 def calc_pvalue(aucs, sigma):
     """Computes log(10) of p-values.
     Args:
@@ -389,10 +408,13 @@ def delong_roc_variance(ground_truth, predictions):
     """
     sample_weight = None
     order, label_1_count, ordered_sample_weight = compute_ground_truth_statistics(
-        ground_truth, sample_weight)
+        ground_truth, sample_weight
+    )
     predictions_sorted_transposed = predictions[np.newaxis, order]
     aucs, delongcov = fastDeLong(predictions_sorted_transposed, label_1_count)
-    assert len(aucs) == 1, "There is a bug in the code, please forward this to the developers"
+    assert (
+        len(aucs) == 1
+    ), "There is a bug in the code, please forward this to the developers"
     return aucs[0], delongcov
 
 
@@ -408,22 +430,28 @@ def delong_roc_test(ground_truth, predictions_one, predictions_two):
     """
     sample_weight = None
     order, label_1_count = compute_ground_truth_statistics(ground_truth)
-    predictions_sorted_transposed = np.vstack((predictions_one, predictions_two))[:, order]
+    predictions_sorted_transposed = np.vstack((predictions_one, predictions_two))[
+        :, order
+    ]
     aucs, delongcov = fastDeLong(predictions_sorted_transposed, label_1_count)
     return calc_pvalue(aucs, delongcov)
+
 
 def calc_auc_ci(y_true, y_pred, alpha=0.95):
     auc, auc_cov = delong_roc_variance(y_true, y_pred)
     auc_std = np.sqrt(auc_cov)
     lower_upper_q = np.abs(np.array([0, 1]) - (1 - alpha) / 2)
-    ci = stats.norm.ppf(
-        lower_upper_q,
-        loc=auc,
-        scale=auc_std)
+    ci = stats.norm.ppf(lower_upper_q, loc=auc, scale=auc_std)
 
     ci[ci > 1] = 1
     return auc, ci
 
-perf_columns = ['AUC lower estimate', 'AUC',
-               'AUC upper estimate', 'accuracy',
-               'F1', 'MCC']
+
+perf_columns = [
+    "AUC lower estimate",
+    "AUC",
+    "AUC upper estimate",
+    "accuracy",
+    "F1",
+    "MCC",
+]
