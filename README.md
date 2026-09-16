@@ -87,14 +87,13 @@ Useful flags for faster or non-interactive (e.g. CI) runs:
   use the full training pool, which is what makes a full study slow)
 - `--al_strategy {entropy,bald,core_set,direct}` -- which acquisition
   function picks the next active-learning query (default: entropy; see
-  "Can active learning identify a more informative subset..." below)
+  "Active Learning Query Strategies" below)
 - `--overwrite` -- replace an existing results directory for the study
   without an interactive yes/no prompt
 - `--seed N` -- base random seed (default: 0). Iteration `i` of a study is
   seeded with `seed + i`, so each iteration is an independent, reproducible
   draw instead of inheriting whatever RNG state prior calls happened to
-  leave behind -- see the seeding note under "Why this pipeline previously
-  stopped working" below.
+  leave behind.
 
 Study names follow the pattern:
 
@@ -127,220 +126,75 @@ Tracked metrics include:
 - F1
 - MCC
 
-## Environment Notes
+## Active Learning Query Strategies
 
-Class-imbalance resampling (`SMOTE`, `ADASYN`, `CondensedNearestNeighbour`,
-`InstanceHardnessThreshold`, via `imbalanced-learn`) has been removed
-entirely: the study-name grammar dropped its `<sampling>` segment (now
-`<dataset>_<split>`, was `<sampling>_<dataset>_<split>`), `imbalanced-learn`
-is no longer a dependency, and every code path that resampled the training
-set before fitting a model is gone. This was tangential to the project's
-actual question -- whether active learning finds a more informative
-training subset than the full pool -- and cutting it keeps the codebase
-focused on that.
+All four strategies share the same loop (`almolml/active_learning.py`'s `ActiveLearner`): start from a
+small labeled seed set, repeatedly pick **one** unlabeled pool point to query next, label it, retrain
+the model from scratch on the accumulated labeled set, and repeat. What differs between them is purely
+*which point gets picked* -- the acquisition function -- implemented in `almolml/query_strategies.py`.
+Select one with `--al_strategy {entropy,bald,core_set,direct}`.
 
-Dependencies are pinned in [`pyproject.toml`](pyproject.toml)
-(`dependencies`/`optional-dependencies`) and fully resolved, with hashes,
-in [`uv.lock`](uv.lock) -- `uv sync` installs exactly what's in the lock
-file rather than re-resolving, so an environment built from it matches CI's
-byte-for-byte. torch is split into `cpu`/`gpu` extras (mutually exclusive:
-`[tool.uv]`'s `conflicts` entry enforces this) routed to different wheel
-indexes via `[tool.uv.sources]`/`[[tool.uv.index]]`, since a CUDA build and
-a CPU-only build of the same torch version aren't installable together.
-There used to be a separate `requirements.txt`; it duplicated
-`pyproject.toml`'s dependency list and the two would drift, so it's gone in
-favor of `pyproject.toml` + `uv.lock` as the single source of truth.
+### Entropy sampling (`entropy_query`)
 
-Model training uses PyTorch (via
-[skorch](https://skorch.readthedocs.io/), which gives PyTorch models a
-sklearn-compatible `fit`/`predict_proba` interface) rather than the
-project's original TensorFlow/Keras implementation. Active learning is a
-small, pluggable query loop implemented directly in
-[`almolml/active_learning.py`](almolml/active_learning.py), rather than a
-dependency on the third-party `modAL` library (see below for why). Its
-acquisition functions, in [`almolml/query_strategies.py`](almolml/query_strategies.py):
+Classic uncertainty sampling: run the model's single forward pass over the pool and pick the point
+whose predicted class probabilities are closest to uniform (highest Shannon entropy). For binary
+classification this is the point closest to `P(class=1) = 0.5` -- the model's single best guess is
+least confident there. It uses only the model's current point estimate, with no notion of *why* the
+model is unsure (a genuinely ambiguous point and a point the model just hasn't seen enough of yet look
+identical to it).
 
-- `entropy_query` -- classic uncertainty sampling (Lewis & Gale, SIGIR 1994).
-- `bald_query` -- Bayesian Active Learning by Disagreement via MC-Dropout
-  (Gal, Islam & Ghahramani, "Deep Bayesian Active Learning with Image
-  Data", ICML 2017).
-- `core_set_query` -- greedy k-center diversity sampling in the model's
-  learned embedding space (Sener & Savarese, "Active Learning for
-  Convolutional Neural Networks: A Core-Set Approach", ICLR 2018).
-- `direct_query` -- imbalance-aware separation-threshold sampling, adapted
-  from DIRECT (Zhang, Katz-Samuels & Nowak, "Improved Algorithms for Deep
-  Active Learning under Imbalance via Optimal Separation", ICML 2025,
-  arXiv:2312.09196). See "Results And Analysis" below -- this one came out
-  worst in our comparison, likely due to how the adaptation collapses
-  their batch/multi-round algorithm into a single-point query.
+> Lewis, D. D., & Gale, W. A. (1994). *A Sequential Algorithm for Training Text Classifiers*. SIGIR '94.
 
-(Margin sampling, another common baseline, was considered and skipped: for
-binary classification it ranks samples identically to entropy sampling, so
-it wouldn't add a distinct comparison point.)
+### BALD (`bald_query`, `bald_scores`)
 
-### Why this pipeline previously stopped working
+Bayesian Active Learning by Disagreement, estimated via MC-Dropout. Instead of one forward pass, it
+runs `n_mc_samples` stochastic passes with dropout left *on* at inference time, giving a small ensemble
+of predictions per pool point. The BALD score is the mutual information between the prediction and the
+model's (dropout-approximated) posterior over parameters: `predictive_entropy - expected_entropy`,
+i.e. how uncertain the *averaged* prediction is, minus how uncertain each individual pass is on
+average. This is high specifically when individual passes are each confident but disagree with each
+other (epistemic uncertainty -- the model hasn't learned enough) and low when passes agree even if the
+averaged prediction itself is uncertain (aleatoric/data noise) -- the distinction entropy sampling
+can't make.
 
-Two independent issues silently broke every run:
+> Gal, Y., Islam, R., & Ghahramani, Z. (2017). *Deep Bayesian Active Learning with Image Data*. ICML
+> 2017. (BALD itself originates in Houlsby, N., Huszár, F., Ghahramani, Z., & Lengyel, M. (2011).
+> *Bayesian Active Learning for Classification and Preference Learning*. arXiv:1112.5745 -- Gal et al.
+> contribute the MC-Dropout approximation used here to make it tractable for neural networks.)
 
-1. **`requirements.txt` listed the active-learning library as `modAL`.**
-   PyPI package names are matched case-insensitively, and `modAL`
-   normalizes to `modal` -- the unrelated Modal Labs cloud SDK. `pip
-   install modAL` therefore installed the wrong package, and `from
-   modAL.models import ActiveLearner` failed. The active-learning library
-   this project actually needed shipped as `modAL-python`, and even that
-   library's newer versions had changed its `ActiveLearner` API in ways
-   that no longer matched how this project used it. Rather than depend on
-   (and patch) that library for the ~15 lines of behavior actually used
-   here -- fit, entropy-based query, teach -- that logic now lives directly
-   in `almolml/active_learning.py`, with no external AL dependency at all.
-2. **A hardcoded feature-vector size.** The neural network's input layer
-   defaulted to `shape=2255`, matching whatever version of rdkit's
-   descriptor list was installed at the time the code was written. Newer
-   rdkit versions ship a different descriptor count, so the actual
-   featurized data no longer matched the model's expected input shape. The
-   model now infers its input shape from the training data instead.
+### Core-Set (`core_set_query`, `farthest_point_index`)
 
-A few smaller correctness bugs were also fixed along the way:
+Greedy k-center diversity sampling, with no model uncertainty involved at all. Every point (labeled and
+pool) is projected into the model's learned embedding space (the penultimate layer, via `_embed`), and
+the strategy queries whichever pool point is *farthest* from its nearest already-labeled neighbor --
+i.e. whichever region of the input space the current labeled set covers most poorly. The premise: a
+model trained on a labeled set that's geometrically well-spread over the data manifold generalizes
+better than one trained on an uncertainty-selected set, which can clump around a single decision
+boundary and miss whole regions of the space.
 
-- `Validation` unpacked `confusion_matrix(...).ravel()` into 4 values,
-  which crashes when a validation split (some splitters deliberately
-  produce a near-empty "almost no validation" split) contains only one
-  class; and the AUC confidence-interval calculation asserted both classes
-  were present in the ground truth, also violated by that same split. Both
-  now degrade to a `NaN` metric instead of crashing.
-- A `numpy`-based DeLong-AUC helper used `np.float`/`np.bool`, which numpy
-  has since removed.
-- **Every result CSV had its "test" and "validation" columns swapped.**
-  The code built each output row as `[iteration] + validation_values +
-  test_values`, but the CSV header lists all `_test` columns before all
-  `_validation` columns. So a column literally named `AUC_test` actually
-  held the validation-set AUC, and vice versa, in every historical run
-  under `Results/`. Row construction now matches the header order.
-- `ALModel.__init__` (now `ActiveLearningModel`) called its own
-  `initialize_al()` once directly, discarding the result, and then called
-  `run()`, which called `initialize_al()` again -- training an initial
-  model from scratch twice per run for no reason.
-- `ActiveLearningModel` reported the **best** score across its whole query
-  trajectory (dozens to hundreds of steps) as "the" performance, rather
-  than the score of the model it actually finished training. Since the
-  network is retrained from scratch at every step (no warm start), each
-  step's score is an independent noisy draw -- taking the max over many
-  of them is a look-elsewhere-biased estimate, not a real result. It now
-  reports the final step's score, matching how every other model in this
-  codebase reports one number for one trained model.
-- **`numpy`/`torch` were seeded once at `models.py` import time**, not per
-  run. Every process therefore replayed the exact same random sequence
-  from its first call onward, which has two consequences: (1) the first
-  iteration of any study is fully deterministic and identical across
-  completely separate invocations of the pipeline, and (2) later
-  iterations within one multi-iteration study "differ" only because their
-  RNG state happens to have drifted from whatever random calls preceded
-  them, not because they were independently seeded -- rerunning the same
-  study reproduces the exact same sequence of "different" iterations every
-  time. This understates true run-to-run variance and makes any
-  measured spread across iterations hard to trust. `seed_everything(seed)`
-  (`almolml/models.py`) is now called once per iteration, with `seed + i` for
-  iteration `i` (see `--seed` above), so each iteration is an independent,
-  reproducible draw and the whole study is exactly reproducible given the
-  same base seed.
+> Sener, O., & Savarese, S. (2018). *Active Learning for Convolutional Neural Networks: A Core-Set
+> Approach*. ICLR 2018.
 
-## Testing And CI
+### DIRECT (`direct_query`, `separation_threshold`)
 
-```bash
-uv sync --extra cpu --extra test
-uv run pytest tests/
-```
+Reduces active learning to a 1-D separation-threshold problem, aimed at class-imbalanced pools. From
+the currently labeled set, `separation_threshold` finds the score value (predicted `P(minority class)`)
+that best splits labeled points into majority/minority by minimizing balanced misclassification count;
+`direct_query` then queries the pool point whose predicted `P(minority)` is closest to that threshold --
+i.e. the point nearest the model's current best guess at the decision boundary. Falls back to entropy
+sampling if the labeled set doesn't yet contain both classes (the threshold is undefined).
 
-GitHub Actions (`.github/workflows/ci.yml`) runs this test suite on every
-push/PR to `main`, then separately builds the Docker image and runs a
-reduced end-to-end experiment inside it (`--iterations 1 --epochs 2
---max_queries 3`) as an integration smoke test.
+This is an adaptation, not a full implementation: the original paper's DIRECT is a multi-round batch
+algorithm whose VReduce subroutine spends part of each round's budget *narrowing* a candidate threshold
+interval before annotating near it, refining the estimate over several rounds within one query batch.
+This repo's `ActiveLearner` queries one point at a time and re-estimates the threshold from scratch on
+every single call -- a much weaker, single-shot version of the same core idea, since the threshold
+estimate here never accumulates the benefit of that iterative narrowing. A properly batched,
+multi-round DIRECT would need restructuring `ActiveLearner`'s single-point query/teach loop into a
+batch acquisition loop, which hasn't been attempted here.
 
-## Results And Analysis
+> Zhang, S., Katz-Samuels, J., & Nowak, R. (2025). *Improved Algorithms for Deep Active Learning under
+> Imbalance via Optimal Separation*. ICML 2025. arXiv:2312.09196.
 
-`Results/` holds both generated pipeline output and some older, hand-curated
-studies (`Study_1/`, `Study_2/`, `Study_3/`, `N_SP1_TTS/`) kept for
-historical reference, including analysis notebooks from before this
-project's PyTorch/active-learning rewrite -- those predate the sampling
-removal below and used study names in the old `<sampling>_<dataset>_<split>`
-format. Running a fresh study writes a new subdirectory without touching
-those:
-
-```bash
-docker build -t almolml .
-docker run --rm -v $(pwd)/Results:/app/Results almolml \
-  --study_name SF_ANV --iterations 3 --epochs 50 --max_queries 200 --overwrite
-```
-
-[`Results/N_SF_ANV_{entropy,bald,core_set,direct}/`](Results) in this repo
-are the output of that command under the pipeline's previous (pre-sampling-removal)
-CLI, once per `--al_strategy`: the `AlmostNoValidation` splitter, 3 repeated
-iterations, 50 training epochs, 200 active-learning query rounds out of the
-~914 real training examples in `Datasets/SCAMS_filtered.csv` (no synthetic
-data anywhere in this comparison -- the synthetic fixtures under
-`tests/conftest.py` are for unit tests only). A fresh run with the current
-CLI would name that same combination `SF_ANV_{entropy,bald,core_set,direct}`.
-
-### Can active learning identify a more informative subset than the full dataset?
-
-The core question: does training only on the subset active learning
-chooses to label do as well as -- or better than -- training on every
-available example? Held-out test AUC, 3 iterations per condition:
-
-| Training set | Examples used | Test AUC | vs. full-data |
-|---|---|---|---|
-| Full training pool | 914 (100%) | 0.817 ± 0.022 (n=12, pooled across the 4 runs below) | -- |
-| AL subset -- Core-Set (diversity) | 210 (23%) | 0.785 ± 0.018 | 96.1% |
-| AL subset -- BALD (MC-Dropout) | 210 (23%) | 0.779 ± 0.015 | 95.4% |
-| AL subset -- entropy sampling | 210 (23%) | 0.754 ± 0.007 | 92.3% |
-| AL subset -- DIRECT | 210 (23%) | 0.737 ± 0.018 | 90.3% |
-
-**No strategy beats full-data training** -- unsurprising, since using every
-available label is an upper bound for a fixed model class, and confirms
-this is a real result rather than a data-loading bug. The practically
-interesting number is how close a 23%-of-the-data subset gets: Core-Set
-and BALD both land at 95-96% of full-data AUC; entropy and DIRECT trail
-further behind.
-
-**Which acquisition function matters -- and DIRECT is a genuine negative
-result, not a win.** BALD and Core-Set each beat entropy sampling in all 3
-of 3 iterations. DIRECT (see `almolml/query_strategies.py`'s `direct_query`,
-adapted from Zhang, Katz-Samuels & Nowak, "Improved Algorithms for Deep
-Active Learning under Imbalance via Optimal Separation", ICML 2025,
-arXiv:2312.09196) came out *worst* of the four here, below even entropy.
-Two likely reasons, both about the adaptation rather than the original
-paper:
-
-- DIRECT's actual algorithm is a multi-round, batch procedure: a
-  version-space-shrinking search (their VReduce subroutine) spends part of
-  each round's budget narrowing a candidate separation-threshold interval
-  *before* annotating near it, refining the estimate over several rounds.
-  Our active learner queries one point at a time and re-estimates the
-  threshold from scratch on every call (`separation_threshold` in
-  `query_strategies.py`) -- a much weaker, single-shot version of their
-  core idea, since the threshold estimate never gets to accumulate the
-  benefit of that iterative narrowing.
-- Querying "near the current best guess of the boundary" is pure
-  exploitation with no exploration mechanism. If the labeled set so far
-  gives a noisy or wrong threshold estimate -- likely early on, with a
-  from-scratch-retrained, poorly-calibrated model -- DIRECT keeps
-  querying near that same wrong region rather than correcting course, unlike
-  entropy/BALD (which re-derive their score from the model's actual
-  current predictions across the whole pool each time) or Core-Set (which
-  explicitly seeks out unrepresented regions).
-
-A properly batched, multi-round DIRECT would need restructuring
-`ActiveLearner`'s single-point query/teach loop into a batch acquisition
-loop -- a real architectural change, not attempted here.
-
-A separate sanity check (not part of the pipeline, see git history for the
-one-off script) confirmed training on 210 *randomly* chosen examples lands
-around the same AUC as entropy sampling's actively-selected 210 -- i.e.
-plain entropy sampling here is barely distinguishable from picking points
-at random, while BALD and Core-Set are not (and DIRECT, per the above, is
-worse than random).
-
-## Notes
-
-- This repo is presented as a research engineering project, not a polished production service.
-- Some code paths depend on cheminformatics tooling (rdkit) that ships prebuilt wheels for common platforms.
+(Margin sampling, another common baseline, was considered and skipped: for binary classification it
+ranks samples identically to entropy sampling, so it wouldn't add a distinct comparison point.)
