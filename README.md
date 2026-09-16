@@ -51,30 +51,32 @@ docker run --rm -v $(pwd)/Results:/app/Results almolml --study_name SF_TTS
 ```
 
 The `-v` mount persists results on the host; without it, results only exist
-inside the container's filesystem.
+inside the container's filesystem. Builds a CPU-only image by default; for
+a CUDA image on a machine with a GPU, add `--build-arg TORCH_VARIANT=gpu`.
 
 ### With a local Python environment
 
-Requires Python 3.10+.
+Requires [`uv`](https://docs.astral.sh/uv/) and Python 3.10+ (`.python-version`
+pins 3.11, which `uv` will install automatically if it's missing).
+
+torch ships as two mutually exclusive builds -- pick one when syncing:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
-python -m almolml --study_name SF_TTS
+uv sync --extra cpu   # portable, no GPU driver needed
+# or
+uv sync --extra gpu   # CUDA build; requires a matching NVIDIA driver
 ```
 
-Equivalent console script after installation:
+Then:
 
 ```bash
-pip install -e .
-almolml --study_name SF_TTS
+uv run almolml --study_name SF_TTS
 ```
 
 Optional dataset path override:
 
 ```bash
-python -m almolml --study_name SF_TTS --datasets_path ./Datasets
+uv run almolml --study_name SF_TTS --datasets_path ./Datasets
 ```
 
 Useful flags for faster or non-interactive (e.g. CI) runs:
@@ -137,8 +139,19 @@ actual question -- whether active learning finds a more informative
 training subset than the full pool -- and cutting it keeps the codebase
 focused on that.
 
-`requirements.txt` and `pyproject.toml` pin a dependency set that is
-verified to work together (see CI). Model training uses PyTorch (via
+Dependencies are pinned in [`pyproject.toml`](pyproject.toml)
+(`dependencies`/`optional-dependencies`) and fully resolved, with hashes,
+in [`uv.lock`](uv.lock) -- `uv sync` installs exactly what's in the lock
+file rather than re-resolving, so an environment built from it matches CI's
+byte-for-byte. torch is split into `cpu`/`gpu` extras (mutually exclusive:
+`[tool.uv]`'s `conflicts` entry enforces this) routed to different wheel
+indexes via `[tool.uv.sources]`/`[[tool.uv.index]]`, since a CUDA build and
+a CPU-only build of the same torch version aren't installable together.
+There used to be a separate `requirements.txt`; it duplicated
+`pyproject.toml`'s dependency list and the two would drift, so it's gone in
+favor of `pyproject.toml` + `uv.lock` as the single source of truth.
+
+Model training uses PyTorch (via
 [skorch](https://skorch.readthedocs.io/), which gives PyTorch models a
 sklearn-compatible `fit`/`predict_proba` interface) rather than the
 project's original TensorFlow/Keras implementation. Active learning is a
@@ -234,8 +247,8 @@ A few smaller correctness bugs were also fixed along the way:
 ## Testing And CI
 
 ```bash
-pip install -r requirements.txt pytest
-pytest tests/
+uv sync --extra cpu --extra test
+uv run pytest tests/
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) runs this test suite on every

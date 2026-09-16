@@ -13,26 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v3
         with:
-          python-version: "3.11"
-
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
-          pip install pytest
-          pip install -e .
+        run: uv sync --frozen --extra cpu --extra test
 
       - name: Run test suite
-        run: pytest tests/ -v
+        run: uv run pytest tests/ -v
 
   docker:
     runs-on: ubuntu-latest
