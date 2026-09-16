@@ -1,4 +1,4 @@
-"""JCIM research pipeline package."""
+"""Active-learning SCAM classification benchmarking pipeline."""
 
 __all__ = ["__version__"]
 

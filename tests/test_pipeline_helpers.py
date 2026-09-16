@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from jcim.pipeline import RUN_STATS_COLUMNS, _append_run, _stats_row
+from almolml.pipeline import RUN_STATS_COLUMNS, _append_run, _stats_row
 
 
 class _StubModel:

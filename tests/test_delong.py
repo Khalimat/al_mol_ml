@@ -1,6 +1,6 @@
 import numpy as np
 
-from jcim.delong import calc_auc_ci
+from almolml.delong import calc_auc_ci
 
 
 def test_calc_auc_ci_returns_nan_when_ground_truth_is_single_class():

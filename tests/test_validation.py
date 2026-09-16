@@ -1,6 +1,6 @@
 import numpy as np
 
-from jcim.validation import Validation
+from almolml.validation import Validation
 
 
 class _StubModel:

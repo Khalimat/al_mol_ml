@@ -1,4 +1,4 @@
-# Core pipeline dependencies for jcim.
+# Core pipeline dependencies for almolml.
 #
 # Pinned to versions verified to work together as of 2026-09; see README's
 # "Environment Notes" section for background on why these pins matter.

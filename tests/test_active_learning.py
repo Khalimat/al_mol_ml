@@ -1,6 +1,6 @@
 import numpy as np
 
-from jcim.active_learning import ActiveLearner
+from almolml.active_learning import ActiveLearner
 
 
 class _StubEstimator:

@@ -1,10 +1,10 @@
 import pytest
 
-from jcim.dataset import Dataset
-from jcim.models import ActiveLearningModel, DeepSCAMsModel, TorchMLPModel
-from jcim.query_strategies import bald_query, core_set_query, direct_query, entropy_query
-from jcim.splitters import TTSSplitter
-from jcim.utilities import dataset_to_splitter
+from almolml.dataset import Dataset
+from almolml.models import ActiveLearningModel, DeepSCAMsModel, TorchMLPModel
+from almolml.query_strategies import bald_query, core_set_query, direct_query, entropy_query
+from almolml.splitters import TTSSplitter
+from almolml.utilities import dataset_to_splitter
 
 
 def _features_and_labels(train_validation_df):

@@ -1,7 +1,7 @@
 import pandas as pd
 from rdkit import Chem
 
-from jcim.featurization import butina_cluster, describe, generate_scaffolds
+from almolml.featurization import butina_cluster, describe, generate_scaffolds
 
 
 def test_describe_shape_matches_fingerprint_plus_descriptor_count():

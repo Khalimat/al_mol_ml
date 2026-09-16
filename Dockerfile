@@ -15,9 +15,9 @@ RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
 COPY pyproject.toml README.md ./
-COPY jcim ./jcim
+COPY almolml ./almolml
 COPY Datasets ./Datasets
 RUN pip install --no-deps -e .
 
-ENTRYPOINT ["python", "-m", "jcim"]
+ENTRYPOINT ["python", "-m", "almolml"]
 CMD ["--help"]

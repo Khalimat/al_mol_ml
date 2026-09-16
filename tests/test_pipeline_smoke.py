@@ -1,17 +1,17 @@
 import pandas as pd
 import pytest
 
-from jcim.pipeline import SCAMsPipeline
+from almolml.pipeline import SCAMsPipeline
 
 
 def test_full_pipeline_runs_end_to_end_and_writes_results(
     tmp_path, monkeypatch, synthetic_datasets_dir
 ):
     # SCAMsPipeline resolves its own output directory relative to REPO_ROOT
-    # (imported from jcim.paths), so redirect that to a temp location for
+    # (imported from almolml.paths), so redirect that to a temp location for
     # the duration of this test instead of touching the real repo's
     # Results/ directory.
-    import jcim.pipeline as pipeline_module
+    import almolml.pipeline as pipeline_module
 
     monkeypatch.setattr(pipeline_module, "REPO_ROOT", tmp_path)
 
@@ -40,7 +40,7 @@ def test_full_pipeline_runs_end_to_end_and_writes_results(
 def test_pipeline_refuses_to_clobber_existing_results_without_overwrite(
     tmp_path, monkeypatch, synthetic_datasets_dir
 ):
-    import jcim.pipeline as pipeline_module
+    import almolml.pipeline as pipeline_module
 
     monkeypatch.setattr(pipeline_module, "REPO_ROOT", tmp_path)
     (tmp_path / "Results" / "SF_TTS").mkdir(parents=True)

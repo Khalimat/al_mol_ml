@@ -41,12 +41,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t jcim:ci .
+        run: docker build -t almolml:ci .
 
       - name: Run a reduced end-to-end smoke experiment in the container
         run: |
           mkdir -p /tmp/ci_results
-          docker run --rm -v /tmp/ci_results:/app/Results jcim:ci \
+          docker run --rm -v /tmp/ci_results:/app/Results almolml:ci \
             --study_name SF_TTS --iterations 1 --epochs 2 --max_queries 3 --overwrite
           test -f /tmp/ci_results/SF_TTS/DeepSCAMs.csv
           test -f /tmp/ci_results/SF_TTS/TF_ML_non_AL.csv

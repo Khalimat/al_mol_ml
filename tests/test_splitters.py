@@ -1,6 +1,6 @@
-from jcim.dataset import Dataset
-from jcim.splitters import AlmostNoValidation, BSplitter, SSplitter, TTSSplitter
-from jcim.utilities import dataset_to_splitter
+from almolml.dataset import Dataset
+from almolml.splitters import AlmostNoValidation, BSplitter, SSplitter, TTSSplitter
+from almolml.utilities import dataset_to_splitter
 
 
 def _build_dataset(train_validation_df):

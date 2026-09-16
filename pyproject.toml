@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jcim-scams-pipeline"
+name = "almolml"
 version = "0.1.0"
 description = "Benchmarking pipeline for SCAM classification with classical, deep learning, and active learning variants."
 readme = "README.md"
@@ -22,10 +22,10 @@ dependencies = [
 test = ["pytest"]
 
 [project.scripts]
-jcim = "jcim.cli:main"
+almolml = "almolml.cli:main"
 
 [tool.setuptools]
-packages = ["jcim"]
+packages = ["almolml"]
 
 [tool.black]
 line-length = 88

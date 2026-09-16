@@ -1,6 +1,6 @@
 import pytest
 
-from jcim.utilities import require_file, str2bool
+from almolml.utilities import require_file, str2bool
 
 
 def test_str2bool_accepts_common_truthy_and_falsy_strings():

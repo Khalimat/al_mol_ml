@@ -1,4 +1,4 @@
-# JCIM SCAM Classification Pipeline
+# al_mol_ml: Active-Learning SCAM Classification Pipeline
 
 Benchmarking pipeline for SCAM classification experiments across classical ML, deep learning, and active learning settings.
 
@@ -23,7 +23,7 @@ The codebase computes molecular descriptors from SMILES strings, trains several 
 ## Repository Layout
 
 ```text
-jcim/
+almolml/
   cli.py             argparse entrypoint
   pipeline.py         orchestrates one study: split -> train -> score -> write CSVs
   dataset.py          loads a CSV of (ID, SMILES, label) into featurized (X, Y)
@@ -38,7 +38,7 @@ jcim/
   paths.py            REPO_ROOT
 Datasets/      Input datasets used by the benchmark pipeline
 Results/       Generated experiment outputs and analysis figures
-tests/         Pytest suite: one test module per jcim module, plus a full pipeline smoke test
+tests/         Pytest suite: one test module per almolml module, plus a full pipeline smoke test
 ```
 
 ## Running The Pipeline
@@ -46,8 +46,8 @@ tests/         Pytest suite: one test module per jcim module, plus a full pipeli
 ### With Docker (recommended)
 
 ```bash
-docker build -t jcim .
-docker run --rm -v $(pwd)/Results:/app/Results jcim --study_name SF_TTS
+docker build -t almolml .
+docker run --rm -v $(pwd)/Results:/app/Results almolml --study_name SF_TTS
 ```
 
 The `-v` mount persists results on the host; without it, results only exist
@@ -61,20 +61,20 @@ Requires Python 3.10+.
 python -m venv .venv && source .venv/bin/activate
 pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-python -m jcim --study_name SF_TTS
+python -m almolml --study_name SF_TTS
 ```
 
 Equivalent console script after installation:
 
 ```bash
 pip install -e .
-jcim --study_name SF_TTS
+almolml --study_name SF_TTS
 ```
 
 Optional dataset path override:
 
 ```bash
-python -m jcim --study_name SF_TTS --datasets_path ./Datasets
+python -m almolml --study_name SF_TTS --datasets_path ./Datasets
 ```
 
 Useful flags for faster or non-interactive (e.g. CI) runs:
@@ -143,9 +143,9 @@ verified to work together (see CI). Model training uses PyTorch (via
 sklearn-compatible `fit`/`predict_proba` interface) rather than the
 project's original TensorFlow/Keras implementation. Active learning is a
 small, pluggable query loop implemented directly in
-[`jcim/active_learning.py`](jcim/active_learning.py), rather than a
+[`almolml/active_learning.py`](almolml/active_learning.py), rather than a
 dependency on the third-party `modAL` library (see below for why). Its
-acquisition functions, in [`jcim/query_strategies.py`](jcim/query_strategies.py):
+acquisition functions, in [`almolml/query_strategies.py`](almolml/query_strategies.py):
 
 - `entropy_query` -- classic uncertainty sampling (Lewis & Gale, SIGIR 1994).
 - `bald_query` -- Bayesian Active Learning by Disagreement via MC-Dropout
@@ -179,7 +179,7 @@ Two independent issues silently broke every run:
    that no longer matched how this project used it. Rather than depend on
    (and patch) that library for the ~15 lines of behavior actually used
    here -- fit, entropy-based query, teach -- that logic now lives directly
-   in `jcim/active_learning.py`, with no external AL dependency at all.
+   in `almolml/active_learning.py`, with no external AL dependency at all.
 2. **A hardcoded feature-vector size.** The neural network's input layer
    defaulted to `shape=2255`, matching whatever version of rdkit's
    descriptor list was installed at the time the code was written. Newer
@@ -226,7 +226,7 @@ A few smaller correctness bugs were also fixed along the way:
   study reproduces the exact same sequence of "different" iterations every
   time. This understates true run-to-run variance and makes any
   measured spread across iterations hard to trust. `seed_everything(seed)`
-  (`jcim/models.py`) is now called once per iteration, with `seed + i` for
+  (`almolml/models.py`) is now called once per iteration, with `seed + i` for
   iteration `i` (see `--seed` above), so each iteration is an independent,
   reproducible draw and the whole study is exactly reproducible given the
   same base seed.
@@ -254,8 +254,8 @@ format. Running a fresh study writes a new subdirectory without touching
 those:
 
 ```bash
-docker build -t jcim .
-docker run --rm -v $(pwd)/Results:/app/Results jcim \
+docker build -t almolml .
+docker run --rm -v $(pwd)/Results:/app/Results almolml \
   --study_name SF_ANV --iterations 3 --epochs 50 --max_queries 200 --overwrite
 ```
 
@@ -291,7 +291,7 @@ further behind.
 
 **Which acquisition function matters -- and DIRECT is a genuine negative
 result, not a win.** BALD and Core-Set each beat entropy sampling in all 3
-of 3 iterations. DIRECT (see `jcim/query_strategies.py`'s `direct_query`,
+of 3 iterations. DIRECT (see `almolml/query_strategies.py`'s `direct_query`,
 adapted from Zhang, Katz-Samuels & Nowak, "Improved Algorithms for Deep
 Active Learning under Imbalance via Optimal Separation", ICML 2025,
 arXiv:2312.09196) came out *worst* of the four here, below even entropy.

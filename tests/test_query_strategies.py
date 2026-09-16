@@ -1,6 +1,6 @@
 import numpy as np
 
-from jcim.query_strategies import (
+from almolml.query_strategies import (
     bald_query,
     bald_scores,
     core_set_query,
@@ -44,7 +44,7 @@ def test_bald_scores_is_high_for_disagreement_low_for_consistent_confidence():
 
 
 def test_bald_query_picks_the_pool_row_with_highest_disagreement(monkeypatch):
-    import jcim.query_strategies as qs
+    import almolml.query_strategies as qs
 
     # Column 0: both MC passes say exactly 0.5 -- consistently uncertain
     # (aleatoric), no disagreement between passes -> BALD score 0.
@@ -69,7 +69,7 @@ def test_core_set_query_falls_back_to_random_when_no_labeled_points_given():
 
 
 def test_core_set_query_uses_embedding_distance(monkeypatch):
-    import jcim.query_strategies as qs
+    import almolml.query_strategies as qs
 
     embeddings = {
         "pool": np.array([[0.1, 0.0], [9.0, 0.0]]),
@@ -95,7 +95,7 @@ def test_separation_threshold_lands_between_perfectly_separated_clusters():
 
 
 def test_direct_query_falls_back_to_entropy_without_both_classes(monkeypatch):
-    import jcim.query_strategies as qs
+    import almolml.query_strategies as qs
 
     called = {}
     monkeypatch.setattr(
