@@ -7,24 +7,22 @@ import sys
 from pathlib import Path
 
 
-#  The pipeline's primary train/validation split is deliberately almost
-#  entirely training data: real evaluation happens against the separate
-#  held-out test set (Datasets/test_DLS.csv), and this split's tiny
-#  "validation" remainder is a secondary, best-effort check.
-TRAIN_VALIDATION_SPLIT_RATIO = 0.00000001
-
-
-def dataset_to_splitter(splitter, dataset, test_split_r=TRAIN_VALIDATION_SPLIT_RATIO):
+def dataset_to_splitter(splitter, dataset, test_split_r=None):
     """Run `dataset` through `splitter`, returning the fitted splitter
     (which exposes X_train/Y_train/X_test/Y_test).
+
+    `test_split_r=None` (default) lets `splitter` use its own class
+    default (`BaseSplitter.__init__`'s `test_split_r=0.3`) rather than
+    forcing a specific ratio here.
     """
+    kwargs = {} if test_split_r is None else {"test_split_r": test_split_r}
     return splitter(
         dataset.X,
         dataset.Y,
         dataset.SMILES,
         dataset.dataset.mols,
         dataset.ID_name,
-        test_split_r=test_split_r,
+        **kwargs,
     )
 
 

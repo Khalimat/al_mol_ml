@@ -55,12 +55,16 @@ class BSplitter(BaseSplitter):
         singleton_cluster_ids = (
             data["cluster"].value_counts().loc[lambda counts: counts == 1].index.tolist()
         )
-        if len(singleton_cluster_ids) < int(data.shape[0] * self.test_split_r):
-            print("Unable to split dataset based on butina clustering")
+        singleton_rows = data[data["cluster"].isin(singleton_cluster_ids)]
+        if len(singleton_rows) < n_samples_test:
+            print(
+                f"Only {len(singleton_rows)} structurally-distinct (singleton-cluster) "
+                f"molecules available, fewer than the {n_samples_test} requested for the "
+                "test set -- using all of them instead of the full requested ratio."
+            )
+            n_samples_test = len(singleton_rows)
 
-        test_set = data[data["cluster"].isin(singleton_cluster_ids)].sample(
-            n_samples_test
-        )
+        test_set = singleton_rows.sample(n_samples_test)
         train_set = data[~data["ID"].isin(test_set["ID"])]
 
         self.X_train = np.array(train_set["X"].tolist())
