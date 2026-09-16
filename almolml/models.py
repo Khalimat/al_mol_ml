@@ -187,7 +187,13 @@ class ActiveLearningModel:
     """Trains the same neural-network architecture as TorchMLPModel, but
     picks its training examples via active learning instead of using the
     whole training set up front. `query_strategy` selects which acquisition
-    function decides the next point to label (see query_strategies.py).
+    function decides the next point(s) to label (see query_strategies.py).
+
+    `batch_size` controls how many pool points are queried and taught per
+    round: 1 (default) reproduces the original point-at-a-time loop; > 1
+    requires a batch-capable `query_strategy` (batch_bald_query,
+    batch_core_set_query, or batch_direct_query), and retrains the model
+    once per batch instead of once per point.
     """
 
     def __init__(
@@ -203,6 +209,7 @@ class ActiveLearningModel:
         n_initial=10,
         epochs=50,
         query_strategy=entropy_query,
+        batch_size=1,
     ):
         self.X_train = X_train
         self.Y_train = Y_train
@@ -214,6 +221,7 @@ class ActiveLearningModel:
         self.n_queries = n_queries
         self.epochs = epochs
         self.query_strategy = query_strategy
+        self.batch_size = batch_size
         self.results_dir = results_dir
         self.model = make_mlp_pipeline(X_train.shape[1], epochs=epochs)
         self.test_performance = None
@@ -250,18 +258,26 @@ class ActiveLearningModel:
         """
         return pd.DataFrame([scores[-1]], index=[label], columns=perf_columns)
 
-    def _write_trace_csvs(self, test_scores, validation_scores):
-        """Write the query-by-query trace so far. Called every
-        CHECKPOINT_EVERY queries (not just at the end) so a long run's
-        progress can be inspected from the filesystem while it's still
-        going, not just once it finishes.
+    def _write_trace_csvs(self, test_scores, validation_scores, n_labeled_history):
+        """Write the round-by-round trace so far. Called every
+        CHECKPOINT_EVERY newly-labeled points (not just at the end) so a
+        long run's progress can be inspected from the filesystem while
+        it's still going, not just once it finishes.
+
+        `n_labeled_history` (one entry per row, cumulative training-set
+        size at that point) matters once `batch_size > 1`: each row is then
+        a whole batch, not a single query, so the row index alone no
+        longer says how many points have been labeled.
         """
-        pd.DataFrame(self._zero_out_nans(test_scores), columns=perf_columns).to_csv(
-            self.results_dir / "test_initial_stats.csv"
-        )
-        pd.DataFrame(
+        test_df = pd.DataFrame(self._zero_out_nans(test_scores), columns=perf_columns)
+        test_df.insert(0, "n_labeled", n_labeled_history)
+        test_df.to_csv(self.results_dir / "test_initial_stats.csv")
+
+        validation_df = pd.DataFrame(
             self._zero_out_nans(validation_scores), columns=perf_columns
-        ).to_csv(self.results_dir / "validation_initial_stats.csv")
+        )
+        validation_df.insert(0, "n_labeled", n_labeled_history)
+        validation_df.to_csv(self.results_dir / "validation_initial_stats.csv")
 
     CHECKPOINT_EVERY = 200
 
@@ -281,9 +297,13 @@ class ActiveLearningModel:
 
         test_scores = [self._score(learner, self.X_test, self.Y_test)]
         validation_scores = [self._score(learner, self.X_validation, self.Y_validation)]
+        n_labeled_history = [len(X_initial)]
 
-        for i in range(self.n_queries - 1):
-            query_idx = learner.query(X_pool)
+        remaining = self.n_queries - 1
+        labeled_since_checkpoint = 0
+        while remaining > 0 and len(X_pool) > 0:
+            this_batch = min(self.batch_size, remaining, len(X_pool))
+            query_idx = learner.query(X_pool, batch_size=this_batch)
             learner.teach(X_pool[query_idx], y_pool[query_idx])
             X_pool, y_pool = (
                 np.delete(X_pool, query_idx, axis=0),
@@ -294,11 +314,15 @@ class ActiveLearningModel:
             validation_scores.append(
                 self._score(learner, self.X_validation, self.Y_validation)
             )
+            n_labeled_history.append(len(learner.X_training))
 
-            if (i + 1) % self.CHECKPOINT_EVERY == 0:
-                self._write_trace_csvs(test_scores, validation_scores)
+            remaining -= this_batch
+            labeled_since_checkpoint += this_batch
+            if labeled_since_checkpoint >= self.CHECKPOINT_EVERY:
+                self._write_trace_csvs(test_scores, validation_scores, n_labeled_history)
+                labeled_since_checkpoint = 0
 
-        self._write_trace_csvs(test_scores, validation_scores)
+        self._write_trace_csvs(test_scores, validation_scores, n_labeled_history)
         test_scores = self._zero_out_nans(test_scores)
         validation_scores = self._zero_out_nans(validation_scores)
         self.test_performance = self._final_row(test_scores, "test performance")

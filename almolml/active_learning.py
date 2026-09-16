@@ -7,7 +7,8 @@ classifier) -- no monkey-patching of a third-party library needed for the
 handful of lines actually used here.
 
 See query_strategies.py for the acquisition functions (entropy, BALD,
-Core-Set, DIRECT) that decide which pool point to label next.
+Core-Set, DIRECT, and batch versions of BALD/Core-Set/DIRECT) that decide
+which pool point(s) to label next.
 """
 
 import numpy as np
@@ -29,10 +30,16 @@ class ActiveLearner:
         self.y_training = y_initial
         self.estimator.fit(self.X_training, self.y_training)
 
-    def query(self, X_pool):
-        return self.query_strategy(
-            self.estimator, X_pool, X_training=self.X_training, y_training=self.y_training
-        )
+    def query(self, X_pool, batch_size=1):
+        """Ask `query_strategy` which pool row(s) to label next. Passes
+        `batch_size` through only when it's not the default 1, so a
+        single-point strategy (whose signature doesn't accept batch_size)
+        keeps working unchanged when nothing asks it to batch.
+        """
+        kwargs = dict(X_training=self.X_training, y_training=self.y_training)
+        if batch_size != 1:
+            kwargs["batch_size"] = batch_size
+        return self.query_strategy(self.estimator, X_pool, **kwargs)
 
     def teach(self, X_new, y_new):
         self.X_training = np.append(self.X_training, X_new, axis=0)

@@ -86,9 +86,13 @@ Useful flags for faster or non-interactive (e.g. CI) runs:
 - `--epochs N` -- training epochs for the neural network models (default 50)
 - `--max_queries N` -- cap on active-learning query rounds per run (default:
   use the full training pool, which is what makes a full study slow)
-- `--al_strategy {entropy,bald,core_set,direct}` -- which acquisition
-  function picks the next active-learning query (default: entropy; see
-  "Active Learning Query Strategies" below)
+- `--al_strategy {entropy,bald,core_set,direct,bald_batch,core_set_batch,direct_batch}`
+  -- which acquisition function picks the next active-learning query
+  (default: entropy; see "Active Learning Query Strategies" below)
+- `--batch_size N` -- number of pool points to query and label per round
+  (default: 1, the original point-at-a-time loop). Only meaningful with a
+  `*_batch` strategy; passing `> 1` with a single-point strategy raises an
+  error.
 - `--overwrite` -- replace an existing results directory for the study
   without an interactive yes/no prompt
 - `--seed N` -- base random seed (default: 0). Iteration `i` of a study is
@@ -129,11 +133,19 @@ Tracked metrics include:
 
 ## Active Learning Query Strategies
 
-All four strategies share the same loop (`almolml/active_learning.py`'s `ActiveLearner`): start from a
-small labeled seed set, repeatedly pick **one** unlabeled pool point to query next, label it, retrain
-the model from scratch on the accumulated labeled set, and repeat. What differs between them is purely
-*which point gets picked* -- the acquisition function -- implemented in `almolml/query_strategies.py`.
-Select one with `--al_strategy {entropy,bald,core_set,direct}`.
+All strategies share the same loop (`almolml/active_learning.py`'s `ActiveLearner`): start from a small
+labeled seed set, repeatedly pick unlabeled pool point(s) to query next, label them, retrain the model
+from scratch on the accumulated labeled set, and repeat. What differs between them is purely *which
+point(s) get picked* -- the acquisition function -- implemented in `almolml/query_strategies.py`. Select
+one with `--al_strategy {entropy,bald,core_set,direct,bald_batch,core_set_batch,direct_batch}`.
+
+Entropy, BALD, Core-Set, and DIRECT query **one** point per round. BALD, Core-Set, and DIRECT each also
+have a batch variant (`bald_batch`, `core_set_batch`, `direct_batch`) that queries `--batch_size` points
+per round and retrains once per batch instead of once per point -- see each strategy's own section below
+for why picking a batch isn't just "run the single-point version `batch_size` times": in general the
+single highest-scoring points are also the most similar to each other (they're often uncertain/far/near-
+the-boundary for the same reason), so naively taking the top-`k` independently tends to select redundant
+points instead of a genuinely diverse batch.
 
 ### Entropy sampling (`entropy_query`)
 
@@ -163,6 +175,24 @@ can't make.
 > *Bayesian Active Learning for Classification and Preference Learning*. arXiv:1112.5745 -- Gal et al.
 > contribute the MC-Dropout approximation used here to make it tractable for neural networks.)
 
+#### Batched: BatchBALD (`batch_bald_query`)
+
+Repeatedly picking the single highest bald_scores point and retraining, `batch_size` times, tends to
+pick a batch of near-duplicates: the highest-scoring points are usually uncertain for the *same* reason
+(clustered around the same decision boundary, say), so knowing one's label makes the others barely more
+informative. BatchBALD instead greedily builds a batch that jointly maximizes mutual information with
+the model's posterior, `I(y_1, ..., y_b; theta)`, one point at a time: it still adds the single best point
+first, but each subsequent pick accounts for how much *new* information it adds given the points already
+in the batch, not just its own individual score. Concretely, conditional on one dropout mask, pool points
+are independent, so a batch's expected per-mask entropy is just the sum of each member's own expected
+entropy (no extra work over bald_scores); the batch's *joint predictive* entropy isn't similarly
+decomposable, though, and requires enumerating the `2**batch_size` joint label configurations of the
+candidate batch under each MC sample -- built up incrementally over `batch_size` greedy steps. This makes
+the cost exponential in `batch_size`, so it's only practical for modest batch sizes.
+
+> Kirsch, A., van Amersfoort, J., & Gal, Y. (2019). *BatchBALD: Efficient and Diverse Batch Acquisition
+> for Deep Bayesian Active Learning*. NeurIPS 2019.
+
 ### Core-Set (`core_set_query`, `farthest_point_index`)
 
 Greedy k-center diversity sampling, with no model uncertainty involved at all. Every point (labeled and
@@ -176,6 +206,19 @@ boundary and miss whole regions of the space.
 > Sener, O., & Savarese, S. (2018). *Active Learning for Convolutional Neural Networks: A Core-Set
 > Approach*. ICLR 2018.
 
+#### Batched: Core-Set (`batch_core_set_query`)
+
+Unlike the other three strategies, Core-Set's own paper is already framed as a batch method (its
+Algorithm 1), so this isn't really an adaptation -- `core_set_query` above is just one greedy step of it.
+`batch_core_set_query` repeats that step `batch_size` times, adding each pick's embedding to the
+reference set *before* choosing the next: the first pick is the point farthest from the labeled set, the
+second is the point farthest from the labeled set *plus that first pick*, and so on. This matters because
+the single farthest point and the second-farthest point are frequently neighbors in embedding space (both
+sit in the same poorly-covered region) -- taking the top-`batch_size` distances from the original labeled
+set alone, without this update step, would tend to pick a cluster of near-duplicates from that one region
+rather than spreading across several. Does not implement the paper's optional outlier-robustness
+refinement (their Algorithm 2, a mixed-integer program), just the core greedy batch procedure.
+
 ### DIRECT (`direct_query`, `separation_threshold`)
 
 Reduces active learning to a 1-D separation-threshold problem, aimed at class-imbalanced pools. From
@@ -188,14 +231,23 @@ sampling if the labeled set doesn't yet contain both classes (the threshold is u
 This is an adaptation, not a full implementation: the original paper's DIRECT is a multi-round batch
 algorithm whose VReduce subroutine spends part of each round's budget *narrowing* a candidate threshold
 interval before annotating near it, refining the estimate over several rounds within one query batch.
-This repo's `ActiveLearner` queries one point at a time and re-estimates the threshold from scratch on
-every single call -- a much weaker, single-shot version of the same core idea, since the threshold
-estimate here never accumulates the benefit of that iterative narrowing. A properly batched,
-multi-round DIRECT would need restructuring `ActiveLearner`'s single-point query/teach loop into a
-batch acquisition loop, which hasn't been attempted here.
+`direct_query` queries one point at a time and re-estimates the threshold from scratch on every single
+call -- a much weaker, single-shot version of the same core idea, since the threshold estimate here never
+accumulates the benefit of that iterative narrowing.
 
 > Zhang, S., Katz-Samuels, J., & Nowak, R. (2025). *Improved Algorithms for Deep Active Learning under
 > Imbalance via Optimal Separation*. ICML 2025. arXiv:2312.09196.
+
+#### Batched: DIRECT (`batch_direct_query`)
+
+Still not literal VReduce (see above -- that would need restructuring `ActiveLearner`'s single-point
+query/teach loop into an actual batch acquisition loop with its own internal rounds, which hasn't been
+attempted here), but a better-justified batch than "run `direct_query` `batch_size` times": rather than
+always taking the single nearest point to the current threshold estimate, it alternates nearest-below,
+nearest-above, next-nearest-below, next-nearest-above, and so on -- straddling the threshold from both
+sides. One round of labels can then confirm or correct the threshold's location from both directions at
+once, instead of nudging it a single point at a time in whichever direction happened to be nearest. Falls
+back to the `batch_size` highest-entropy pool points if the labeled set doesn't yet contain both classes.
 
 (Margin sampling, another common baseline, was considered and skipped: for binary classification it
 ranks samples identically to entropy sampling, so it wouldn't add a distinct comparison point.)

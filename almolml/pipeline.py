@@ -14,7 +14,15 @@ from rdkit import RDLogger
 from .dataset import Dataset
 from .models import ActiveLearningModel, DeepSCAMsModel, TorchMLPModel, seed_everything
 from .paths import REPO_ROOT
-from .query_strategies import bald_query, core_set_query, direct_query, entropy_query
+from .query_strategies import (
+    bald_query,
+    batch_bald_query,
+    batch_core_set_query,
+    batch_direct_query,
+    core_set_query,
+    direct_query,
+    entropy_query,
+)
 from .splitters import AlmostNoValidation, BSplitter, SSplitter, TTSSplitter
 from .utilities import dataset_to_splitter, prepare_results_dir, require_file
 
@@ -33,6 +41,9 @@ AL_STRATEGIES = {
     "bald": bald_query,
     "core_set": core_set_query,
     "direct": direct_query,
+    "bald_batch": batch_bald_query,
+    "core_set_batch": batch_core_set_query,
+    "direct_batch": batch_direct_query,
 }
 
 RUN_STATS_COLUMNS = [
@@ -81,6 +92,7 @@ class SCAMsPipeline:
         epochs: int = 50,
         max_queries: Optional[int] = None,
         al_strategy: str = "entropy",
+        batch_size: int = 1,
         overwrite: bool = False,
         test_name: str = "test_DLS.csv",
         X_column_name: str = "Smiles String",
@@ -91,6 +103,7 @@ class SCAMsPipeline:
         self.epochs = epochs
         self.max_queries = max_queries
         self.al_strategy = AL_STRATEGIES[al_strategy]
+        self.batch_size = batch_size
         self.study_name = study_name
         self.seed = seed
 
@@ -136,6 +149,7 @@ class SCAMsPipeline:
                 epochs=self.epochs,
                 max_queries=self.max_queries,
                 al_strategy=self.al_strategy,
+                batch_size=self.batch_size,
                 seed=self.seed + i,
             )
             self.deepscams_results = _append_run(
@@ -167,6 +181,7 @@ class PipelineRun:
         epochs: int = 50,
         max_queries: Optional[int] = None,
         al_strategy=entropy_query,
+        batch_size: int = 1,
         seed: int = 0,
     ):
         self.iteration = iteration
@@ -179,6 +194,7 @@ class PipelineRun:
         self.epochs = epochs
         self.max_queries = max_queries
         self.al_strategy = al_strategy
+        self.batch_size = batch_size
         self.seed = seed
         self.results_dir = prepare_results_dir(
             results_dir_par / str(iteration), overwrite=True
@@ -235,6 +251,7 @@ class PipelineRun:
             results_dir=self.results_dir,
             epochs=self.epochs,
             query_strategy=self.al_strategy,
+            batch_size=self.batch_size,
         )
         self.active_learning_stats = _stats_row(self.iteration, active_learner)
 

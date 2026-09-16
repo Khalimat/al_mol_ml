@@ -36,13 +36,34 @@ def build_parser():
     )
     parser.add_argument(
         "--al_strategy",
-        choices=["entropy", "bald", "core_set", "direct"],
+        choices=[
+            "entropy",
+            "bald",
+            "core_set",
+            "direct",
+            "bald_batch",
+            "core_set_batch",
+            "direct_batch",
+        ],
         default="entropy",
         help="Active-learning query strategy: 'entropy' (uncertainty sampling), "
         "'bald' (Bayesian Active Learning by Disagreement via MC-Dropout), "
-        "'core_set' (greedy k-center diversity sampling), or 'direct' "
+        "'core_set' (greedy k-center diversity sampling), 'direct' "
         "(imbalance-aware separation-threshold sampling, adapted from DIRECT, "
-        "ICML 2025). Default: entropy.",
+        "ICML 2025), or the batch versions 'bald_batch' (BatchBALD, NeurIPS "
+        "2019), 'core_set_batch' (the paper's actual batch algorithm), and "
+        "'direct_batch' (queries straddling the threshold from both sides). "
+        "The batch strategies require --batch_size > 1 to have any effect "
+        "over their single-point counterparts. Default: entropy.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="Number of pool points to query and label per round (default: 1, "
+        "the original point-at-a-time loop). Only meaningful with a batch "
+        "--al_strategy (bald_batch, core_set_batch, direct_batch); passing "
+        "> 1 with a single-point strategy raises an error.",
     )
     parser.add_argument(
         "--overwrite",
@@ -72,6 +93,7 @@ def main():
         epochs=args.epochs,
         max_queries=args.max_queries,
         al_strategy=args.al_strategy,
+        batch_size=args.batch_size,
         overwrite=args.overwrite,
         seed=args.seed,
     )
