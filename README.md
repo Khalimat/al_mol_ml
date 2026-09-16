@@ -29,7 +29,7 @@ The codebase computes molecular descriptors from SMILES strings, trains several 
 │   ├── pipeline.py          orchestrates one study: split -> train -> score -> write CSVs
 │   ├── dataset.py           loads a CSV of (ID, SMILES, label) into featurized (X, Y)
 │   ├── featurization.py     SMILES -> descriptor vectors; Butina clustering; scaffold grouping
-│   ├── splitters.py         TTS / Butina / scaffold / "almost no validation" splitters
+│   ├── splitters.py         TTS / Butina / scaffold splitters
 │   ├── models.py            DeepSCAMs (sklearn MLP), TorchMLPModel, ActiveLearningModel
 │   ├── active_learning.py   a small pluggable active learner (no third-party AL library)
 │   ├── query_strategies.py  acquisition functions: entropy, BALD (MC-Dropout), Core-Set, DIRECT

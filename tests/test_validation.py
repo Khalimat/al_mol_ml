@@ -29,9 +29,9 @@ def test_validation_handles_balanced_two_class_input():
 
 
 def test_validation_does_not_crash_on_single_sample_single_class():
-    # This is the "almost no validation" edge case: a 1-row validation set
-    # is always single-class, which used to crash confusion_matrix().ravel()
-    # (expected 4 values, got 1) and the DeLong AUC assert.
+    # A 1-row set is always single-class, which used to crash
+    # confusion_matrix().ravel() (expected 4 values, got 1) and the DeLong
+    # AUC assert.
     X = np.zeros((1, 1))
     y = np.array([1])
     model = _StubModel([1])

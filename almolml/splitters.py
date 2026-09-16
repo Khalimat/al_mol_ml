@@ -100,18 +100,3 @@ class SSplitter(BaseSplitter):
         self.X_test = np.array(data.iloc[test_inds]["X"].tolist())
         self.Y_train = np.array(data.iloc[train_inds]["Y"].tolist())
         self.Y_test = np.array(data.iloc[test_inds]["Y"].tolist())
-
-
-class AlmostNoValidation(BaseSplitter):
-    """Holds out exactly one sample of each class, keeping everything else
-    for training. Ignores `test_split_r`.
-    """
-
-    def split(self):
-        mask = np.zeros(len(self.Y), dtype=bool)
-        mask[np.random.choice(np.where(self.Y == 0)[0])] = True
-        mask[np.random.choice(np.where(self.Y == 1)[0])] = True
-        self.Y_test = self.Y[mask]
-        self.Y_train = self.Y[~mask]
-        self.X_test = np.array(self.X)[mask]
-        self.X_train = np.array(self.X)[~mask]

@@ -23,7 +23,7 @@ from .query_strategies import (
     direct_query,
     entropy_query,
 )
-from .splitters import AlmostNoValidation, BSplitter, SSplitter, TTSSplitter
+from .splitters import BSplitter, SSplitter, TTSSplitter
 from .utilities import dataset_to_splitter, prepare_results_dir, require_file
 
 RDLogger.DisableLog("rdApp.*")
@@ -35,7 +35,7 @@ DATASETS = {
     "SP1": "SCAMS_balanced_with_positive.csv",
     "SP2": "SCAMS_added_positives_653_1043.csv",
 }
-SPLITTERS = {"TTS": TTSSplitter, "SS": SSplitter, "B": BSplitter, "ANV": AlmostNoValidation}
+SPLITTERS = {"TTS": TTSSplitter, "SS": SSplitter, "B": BSplitter}
 AL_STRATEGIES = {
     "entropy": entropy_query,
     "bald": bald_query,

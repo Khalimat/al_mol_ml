@@ -87,10 +87,10 @@ def delong_roc_variance(ground_truth, predictions):
 def calc_auc_ci(y_true, y_pred, alpha=0.95):
     """AUC and its (lower, upper) confidence bound at level `alpha`."""
     if len(np.unique(y_true)) < 2:
-        # AUC is undefined without both classes present, which happens for
-        # the deliberately tiny "almost no validation" splits used by some
-        # splitters. Report NaN; callers already treat NaN as a degenerate
-        # metric (see ActiveLearningModel.run's np.isnan handling).
+        # AUC is undefined without both classes present, which can happen
+        # for a small enough test/validation set. Report NaN; callers
+        # already treat NaN as a degenerate metric (see
+        # ActiveLearningModel.run's np.isnan handling).
         return np.nan, np.array([np.nan, np.nan])
     auc, auc_variance = delong_roc_variance(y_true, y_pred)
     auc_std = np.sqrt(auc_variance)
