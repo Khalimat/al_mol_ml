@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run test suite
+        run: pytest tests/ -v
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t jcim:ci .
+
+      - name: Run a reduced end-to-end smoke experiment in the container
+        run: |
+          mkdir -p /tmp/ci_results
+          docker run --rm -v /tmp/ci_results:/app/Results jcim:ci \
+            --study_name SF_TTS --iterations 1 --epochs 2 --max_queries 3 --overwrite
+          test -f /tmp/ci_results/SF_TTS/DeepSCAMs.csv
+          test -f /tmp/ci_results/SF_TTS/TF_ML_non_AL.csv
+          test -f /tmp/ci_results/SF_TTS/TF_ML_AL.csv
+          cat /tmp/ci_results/SF_TTS/DeepSCAMs.csv

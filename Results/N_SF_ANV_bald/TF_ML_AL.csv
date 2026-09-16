@@ -1,0 +1,2 @@
+,Iteration,AUC_LB_test,AUC_test,AUC_UB_test,Accuracy_test,F1_test,MCC_test,AUC_LB_validation,AUC_validation,AUC_UB_validation,Accuracy_validation,F1_validation,MCC_validation
+0,0,0.7308025114621177,0.8330170777988614,0.935231644135605,0.7076923076923077,0.5957446808510638,0.4554303873291977,0.0,1.0,0.0,1.0,1.0,1.0

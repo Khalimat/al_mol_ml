@@ -1,9 +1,0 @@
-,AUC_LB_test,AUC_test,AUC_UB_test,Accuracy_test,F1_test,MCC_test,AUC_LB_validation,AUC_validation,AUC_UB_validation,Accuracy_validation,F1_validation,MCC_validation
-ADASYN_SF_TTS,A,A,A,A,A,A,A,A,A,A,A,A
-SMOTE_SP2_TTS,A,A,A,A,A,A,A,A,A,A,A,A
-IHT_SF_TTS,B,B,B,A,B,A,A,A,A,A,A,A
-CNN_SP2_TTS,A,A,A,A,A,A,A,A,A,A,A,A
-CNN_SF_TTS,B,A,A,A,B,A,A,A,A,A,A,A
-SMOTE_SF_TTS,A,A,A,A,A,A,A,A,A,A,A,A
-ADASYN_SP2_TTS,A,A,A,A,A,A,A,A,A,A,A,A
-IHT_SP2_TTS,B,B,B,B,B,B,A,A,A,A,A,A

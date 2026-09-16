@@ -1,0 +1,16 @@
+.git
+.gitignore
+.idea
+.ipynb_checkpoints
+.mypy_cache
+.pytest_cache
+__pycache__
+*.py[cod]
+.DS_Store
+
+# Historical example outputs and figures -- large, not needed to build or
+# run the image. A fresh Results/ tree is created at runtime; mount a
+# volume there to persist new study output on the host.
+Results
+Pipeline_UML.jpg
+scams_project_env.txt
