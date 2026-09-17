@@ -251,3 +251,28 @@ back to the `batch_size` highest-entropy pool points if the labeled set doesn't 
 
 (Margin sampling, another common baseline, was considered and skipped: for binary classification it
 ranks samples identically to entropy sampling, so it wouldn't add a distinct comparison point.)
+
+## Results: Does Batch Active Learning Beat Full-Data Training?
+
+The comparison that matters: does a batch strategy's final model (trained on the labels *it* chose to
+query) do any better than a model trained on the entire labeled pool? Each of the three batch strategies
+was run on all three splits (TTS, Butina, Scaffold), **10 independent iterations each** (fresh initial
+sample and model init every time) -- a real variance estimate, not a single noisy run.
+
+![Batch active learning vs. full-data training, AUC](docs/figures/batch_al_auc.png)
+
+![Batch active learning vs. full-data training, MCC](docs/figures/batch_al_mcc.png)
+
+**No strategy on any split beats the full-data baseline by more than run-to-run noise.** Every bar's
+error bar overlaps the baseline's own error bar in both charts, for all nine (strategy, split)
+combinations. Batched DIRECT is directionally the strongest performer -- highest mean AUC and MCC on
+TTS and Butina, though not Scaffold -- but its own std is wide enough that this isn't distinguishable
+from chance with 10 iterations.
+
+This is a materially different conclusion than any single run in this project suggested along the way:
+an earlier single-run full-pool comparison had Core-Set apparently beating the baseline (0.852 vs.
+0.834 AUC), and an earlier single-run batch comparison had batched DIRECT apparently beating baseline by
+0.09 AUC on TTS. Both of those gaps disappeared once actually repeated. The practical lesson generalizes
+beyond this dataset: **a single active-learning run "beating" full-data training is not evidence of a
+real effect** -- the full-data baseline itself varies run to run by about as much as any of the observed
+"wins," so the only way to tell a real effect from noise is to repeat the comparison.
