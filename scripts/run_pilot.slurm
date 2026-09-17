@@ -16,9 +16,9 @@
 #   scripts/run_pilot.py -- see that script's own --help)
 
 #SBATCH --job-name=almolml-pilot
-#SBATCH --gres=gpu:h100:1            # <-- adjust: your cluster's GPU resource syntax
+#SBATCH --gres=gpu:a100:1            # matches the srun request you said works on this cluster
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --mem=10G                    # matches your working srun request; bump if a run OOMs
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/pilot_%j.out
 #SBATCH --error=logs/pilot_%j.err
@@ -32,12 +32,13 @@
 # `#SBATCH --partition=<name>` -- ask your cluster admins or check
 # `sinfo` for the GPU partition's name.
 #
-# Resource values above (cpus/mem/time) are conservative starting guesses,
-# not measured against your account's actual QOS limits -- if sbatch still
-# rejects the job ("Job violates accounting/QOS policy..."), check your
-# limits with `sacctmgr -p show assoc user=$USER format=account,qos` and
-# `sacctmgr show qos format=name,maxwall,maxtresperuser` and lower whichever
-# value(s) exceed them.
+# --gres/--mem/--time above match a request you'd already confirmed works
+# interactively on this cluster (`srun --gres=gpu:a100:1 --mem=10G
+# --time=02:00:00 --pty bash`); --cpus-per-task=4 is the one value not
+# taken from that, so if sbatch still rejects the job ("Job violates
+# accounting/QOS policy..."), that's the one to look at first -- check
+# `sacctmgr -p show assoc user=$USER format=account,qos` and `sacctmgr show
+# qos format=name,maxwall,maxtresperuser` for your actual limits.
 
 set -euo pipefail
 
