@@ -236,7 +236,14 @@ class PipelineRun:
         self.mlp_stats = _stats_row(self.iteration, mlp)
 
     def _run_active_learning(self):
-        n_queries = self.X_train.shape[0] - 11
+        # Set generously high enough that ActiveLearningModel.run()'s own
+        # `len(X_pool) > 0` check is what actually stops the loop -- i.e.
+        # this always consumes the entire pool -- regardless of n_initial.
+        # (Previously `self.X_train.shape[0] - 11`, which only reproduced
+        # the true full pool when n_initial was 12; with the current
+        # n_initial=10 default it silently left the last 2 pool examples
+        # unlabeled on every "full pool" run.)
+        n_queries = self.X_train.shape[0]
         if self.max_queries is not None:
             n_queries = min(n_queries, self.max_queries)
 
