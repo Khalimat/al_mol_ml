@@ -16,14 +16,28 @@
 #   scripts/run_pilot.py -- see that script's own --help)
 
 #SBATCH --job-name=almolml-pilot
-#SBATCH --partition=gpu              # <-- adjust: your cluster's GPU partition name
 #SBATCH --gres=gpu:h100:1            # <-- adjust: your cluster's GPU resource syntax
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=08:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
 #SBATCH --output=logs/pilot_%j.out
 #SBATCH --error=logs/pilot_%j.err
 # #SBATCH --account=your_account     # <-- adjust: uncomment and set if your cluster requires one
+#
+# No --partition here on purpose: some sites' job_submit plugin rejects an
+# explicit partition alongside --gres and routes GPU jobs to the right
+# partition automatically from --gres alone (this is what the error
+# "Specifying gpu partition is not allowed, Please use '--gres'..." means).
+# If your site *does* need an explicit partition, add it back as
+# `#SBATCH --partition=<name>` -- ask your cluster admins or check
+# `sinfo` for the GPU partition's name.
+#
+# Resource values above (cpus/mem/time) are conservative starting guesses,
+# not measured against your account's actual QOS limits -- if sbatch still
+# rejects the job ("Job violates accounting/QOS policy..."), check your
+# limits with `sacctmgr -p show assoc user=$USER format=account,qos` and
+# `sacctmgr show qos format=name,maxwall,maxtresperuser` and lower whichever
+# value(s) exceed them.
 
 set -euo pipefail
 
