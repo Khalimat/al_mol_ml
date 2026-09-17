@@ -29,7 +29,16 @@ def describe(mols):
         descriptor_values = []
         for descriptor_fn in descriptor_fns:
             value = descriptor_fn(mol)
-            if value > np.finfo(np.float32).max:
+            if not np.isfinite(value):
+                # A handful of rdkit descriptors (e.g. Ipc) can overflow to
+                # +/-inf, or come back NaN, for specific structures --
+                # not something the three original SCAM datasets happened
+                # to trigger, but real once the study covers more varied
+                # molecules (see docs/generalization_study_design.md).
+                # Zero it out rather than let a NaN/inf reach the
+                # downstream models, which reject non-finite input.
+                value = 0.0
+            elif value > np.finfo(np.float32).max:
                 value = np.finfo(np.float32).max
             descriptor_values.append(np.float32(value))
         descrs.append(fingerprint_bits + descriptor_values)

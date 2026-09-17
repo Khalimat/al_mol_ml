@@ -7,16 +7,24 @@ This repository packages a research workflow for comparing active-learning query
 ## Project Summary
 
 The project evaluates whether active learning can identify a more informative training subset than
-labeling the full pool, for SCAM classification models. It compares:
+labeling the full pool, for small-molecule property-prediction classification models. It compares:
 
 - baseline training on the full labeled pool
 - active learning with entropy, BALD, Core-Set, and DIRECT query strategies
 - multiple dataset variants and train/validation/test split strategies
+- multiple model architecture backends (MLP-on-fingerprint, Random Forest, GNN)
 
 An earlier version of this project also compared class-imbalance resampling techniques (`SMOTE`,
 `ADASYN`, `CondensedNearestNeighbour`, `InstanceHardnessThreshold`); that functionality has since been
 removed to keep the codebase focused on the active-learning question above -- see git history if you
 need it.
+
+The original study covered SCAM (small-colloidal-aggregator) classification only, on one
+architecture. `docs/generalization_study_design.md` lays out a generalization of the same question
+across other datasets where active learning is plausibly useful (BBBP, ClinTox, two Tox21 assays, a
+subsampled HIV) and across architectures (adding a Random Forest and a graph neural network backend
+alongside the original MLP) -- see that doc for the reasoning, and "Beyond SCAM" below for how to run
+it.
 
 The codebase computes molecular descriptors from SMILES strings, trains several model variants, tracks evaluation metrics across repeated runs, and writes per-study result tables for downstream analysis.
 
@@ -25,21 +33,28 @@ The codebase computes molecular descriptors from SMILES strings, trains several 
 ```text
 .
 ├── almolml/
-│   ├── cli.py               argparse entrypoint
-│   ├── pipeline.py          orchestrates one study: split -> train -> score -> write CSVs
-│   ├── dataset.py           loads a CSV of (ID, SMILES, label) into featurized (X, Y)
-│   ├── featurization.py     SMILES -> descriptor vectors; Butina clustering; scaffold grouping
-│   ├── splitters.py         TTS / Butina / scaffold splitters
-│   ├── models.py            DeepSCAMs (sklearn MLP), TorchMLPModel, ActiveLearningModel
-│   ├── active_learning.py   a small pluggable active learner (no third-party AL library)
-│   ├── query_strategies.py  acquisition functions: entropy, BALD (MC-Dropout), Core-Set, DIRECT
-│   ├── validation.py        AUC/accuracy/F1/MCC for a model on one (X, Y) set
-│   ├── delong.py            DeLong's method for the ROC AUC confidence interval
-│   ├── utilities.py         small general-purpose helpers (arg parsing, filesystem setup)
-│   └── paths.py             REPO_ROOT
-├── Datasets/                input datasets used by the benchmark pipeline
-├── Results/                 generated experiment outputs and analysis figures
-└── tests/                   pytest suite: one test module per almolml module, plus a full pipeline smoke test
+│   ├── cli.py                 argparse entrypoint
+│   ├── pipeline.py            orchestrates one study: split -> train -> score -> write CSVs
+│   ├── dataset.py             loads a CSV of (ID, SMILES, label) into featurized (X, Y)
+│   ├── featurization.py       SMILES -> descriptor vectors; Butina clustering; scaffold grouping
+│   ├── graph_featurization.py SMILES -> per-molecule graph (for the GNN backend)
+│   ├── splitters.py           TTS / Butina / scaffold splitters; three_way_split for single-file datasets
+│   ├── models.py              DeepSCAMs (sklearn MLP), TorchMLPModel, ActiveLearningModel
+│   ├── model_backends.py      architecture backends: MLP (torch), Random Forest, GNN (PyTorch Geometric)
+│   ├── active_learning.py     a small pluggable active learner (no third-party AL library)
+│   ├── query_strategies.py    acquisition functions: entropy, BALD (MC-Dropout), Core-Set, DIRECT
+│   ├── validation.py          AUC/accuracy/F1/MCC for a model on one (X, Y) set
+│   ├── delong.py              DeLong's method for the ROC AUC confidence interval
+│   ├── utilities.py           small general-purpose helpers (arg parsing, filesystem setup)
+│   └── paths.py               REPO_ROOT
+├── Datasets/                  input datasets used by the benchmark pipeline
+├── Results/                   generated experiment outputs and analysis figures
+├── scripts/
+│   ├── prepare_new_datasets.py   downloads/cleans BBBP, ClinTox, Tox21, HIV-subsample into Datasets/
+│   └── run_pilot.py              pilot run across the new datasets x architectures x strategies
+├── docs/
+│   └── generalization_study_design.md   design doc for the multi-dataset, multi-architecture study
+└── tests/                     pytest suite: one test module per almolml module, plus a full pipeline smoke test
 ```
 
 ## Running The Pipeline
@@ -93,6 +108,12 @@ Useful flags for faster or non-interactive (e.g. CI) runs:
   (default: 1, the original point-at-a-time loop). Only meaningful with a
   `*_batch` strategy; passing `> 1` with a single-point strategy raises an
   error.
+- `--architecture {mlp,rf,gnn}` -- model architecture backend (default:
+  `mlp`, the original torch MLP on Morgan fingerprint + RDKit descriptors).
+  `rf` is a Random Forest on the same features; `gnn` is a graph neural
+  network over the molecular graph directly, and requires the `graph`
+  extra (`uv sync --extra cpu --extra graph`). See
+  `docs/generalization_study_design.md` section 4 and `model_backends.py`.
 - `--overwrite` -- replace an existing results directory for the study
   without an interactive yes/no prompt
 - `--seed N` -- base random seed (default: 0). Iteration `i` of a study is
@@ -111,6 +132,51 @@ Examples:
 - `SF_TTS`: `SCAMS_filtered.csv`, train/test split
 - `SP1_B`: balanced-positive dataset, Butina split
 - `SP2_SS`: augmented-positive dataset, scaffold split
+
+## Beyond SCAM: Other Datasets
+
+`docs/generalization_study_design.md` covers the reasoning; this is the short version of how to run it.
+
+Five more datasets are available, chosen for the same property that makes SCAM worth testing active
+learning on: a small-to-medium pool with scarce or imbalanced labels (plus a large-pool, rare-positive
+regime SCAM doesn't cover):
+
+| Study key    | Dataset                       | n (~)  | Positive rate (~) |
+|--------------|--------------------------------|-------|--------------------|
+| `BBBP`       | Blood-brain-barrier permeability | 2000  | 76% (imbalanced toward permeable) |
+| `CLINTOX`    | Clinical-trial toxicity failure | 1500  | 8% |
+| `TOX21NRAR`  | Tox21, NR-AR assay              | 7300  | 4% |
+| `TOX21SRP53` | Tox21, SR-p53 assay             | 6800  | 6% |
+| `HIVSUB`     | HIV replication inhibition, stratified subsample | 7000 | 3.5% |
+
+Fetch and clean them first (downloads from MoleculeNet's public distribution, one-time, skips a file
+that already exists):
+
+```bash
+uv run python scripts/prepare_new_datasets.py
+```
+
+These don't come with a separately curated external test file the way SCAM's `test_DLS.csv` does, so
+train/validation/test are all carved out of the one file by the study's own splitter
+(`--test_split_r`/`--validation_split_r`, defaults 0.2/0.3) instead -- see
+`almolml.splitters.three_way_split`.
+
+Run one directly, same as any other study, with whichever architecture:
+
+```bash
+uv run almolml --study_name BBBP_SS --al_strategy direct_batch --batch_size 5 --architecture gnn
+```
+
+Or run the pilot matrix (all 5 datasets x 3 architectures x {entropy, batched DIRECT}, scaffold split,
+a capped query budget) to validate the pipeline end to end before committing to a full study:
+
+```bash
+uv run python scripts/run_pilot.py                      # everything, defaults
+uv run python scripts/run_pilot.py --datasets BBBP CLINTOX --architectures mlp rf   # a subset
+```
+
+Writes per-combination results under `Results/pilot/`, plus a `pilot_summary.csv` of mean +/- std AUC
+and MCC per (dataset, architecture, strategy). See the script's own docstring for all options.
 
 ## Method Overview
 

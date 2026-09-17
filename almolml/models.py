@@ -1,30 +1,14 @@
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-from skorch import NeuralNetBinaryClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler, RobustScaler
+from sklearn.preprocessing import MinMaxScaler
 
 from .active_learning import ActiveLearner
+from .model_backends import ARCHITECTURES, make_backend, seed_everything  # noqa: F401
 from .query_strategies import entropy_query
 from .utilities import perf_columns
 from .validation import Validation
-
-
-def seed_everything(seed: int) -> None:
-    """Seed numpy and torch's global RNGs.
-
-    Call this once per run (e.g. once per pipeline iteration) rather than
-    once at import time: a single import-time seed makes every run's first
-    iteration identical regardless of how many times the process is
-    restarted, and gives later iterations a RNG state that depends on
-    incidental prior random calls rather than on a controlled, reproducible
-    seed of their own.
-    """
-    np.random.seed(seed)
-    torch.manual_seed(seed)
 
 
 class Model:
@@ -101,82 +85,31 @@ class DeepSCAMsModel(Model):
         self.model.fit(self.X_train, self.Y_train.T)
 
 
-class SCAMsNet(nn.Module):
-    """MLP architecture originally defined as a Keras Sequential model.
-
-    Outputs a single logit (no sigmoid) since it is paired with
-    NeuralNetBinaryClassifier, which applies the sigmoid internally.
-    `features`/`head` are split apart (rather than one Sequential) so that
-    `embed()` -- the penultimate-layer representation -- is available for
-    embedding-space active-learning strategies (see query_strategies.py).
-    """
-
-    def __init__(self, shape=2255, dropout=0.4):
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Linear(shape, 500),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(500, 100),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(100, 50),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(50, 10),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-        )
-        self.head = nn.Linear(10, 1)
-
-    def embed(self, X):
-        return self.features(X.float())
-
-    def forward(self, X):
-        return self.head(self.embed(X)).squeeze(-1)
-
-
-class TorchBinaryClassifier(NeuralNetBinaryClassifier):
-    """NeuralNetBinaryClassifier that tolerates integer 0/1 labels.
-
-    BCEWithLogitsLoss requires float targets, but labels flow in here as
-    plain int arrays from pandas/rdkit, including through the
-    active-learning teach()/query() loop where we don't control the dtype.
-    """
-
-    def get_loss(self, y_pred, y_true, *args, **kwargs):
-        y_true = torch.as_tensor(y_true, dtype=torch.float32)
-        return super().get_loss(y_pred, y_true, *args, **kwargs)
-
-
-def make_mlp_pipeline(shape, epochs=50):
-    """A (scaler, neural net) pipeline: the shared model architecture used
-    by both TorchMLPModel and ActiveLearningModel.
-    """
-    classifier = TorchBinaryClassifier(
-        module=SCAMsNet,
-        module__shape=shape,
-        max_epochs=epochs,
-        optimizer=torch.optim.Adam,
-        train_split=None,
-        verbose=0,
-    )
-    return Pipeline(
-        [("scaler", RobustScaler(quantile_range=(25, 75))), ("mlp", classifier)]
-    )
-
-
 class TorchMLPModel(Model):
     """The neural-network model (originally TensorFlow/Keras, now PyTorch
-    via skorch) trained without active learning.
+    via skorch) trained without active learning. `architecture` selects
+    which backend (see model_backends.py) it's actually built from --
+    "mlp" (default, the original architecture), "rf", or "gnn" -- so the
+    same class serves as the full-pool baseline for whichever architecture
+    is being compared against active learning.
     """
 
     def __init__(
-        self, X_train, Y_train, X_test, Y_test, X_validation, Y_validation, epochs=50
+        self,
+        X_train,
+        Y_train,
+        X_test,
+        Y_test,
+        X_validation,
+        Y_validation,
+        epochs=50,
+        architecture="mlp",
+        seed=None,
     ):
         super().__init__(X_train, Y_train, X_test, Y_test, X_validation, Y_validation)
         self.epochs = epochs
-        self.model = make_mlp_pipeline(X_train.shape[1], epochs=epochs)
+        self.architecture = architecture
+        self.model = make_backend(architecture, X_train, epochs=epochs, seed=seed)
         self.run()
 
     def train(self):
@@ -210,6 +143,8 @@ class ActiveLearningModel:
         epochs=50,
         query_strategy=entropy_query,
         batch_size=1,
+        architecture="mlp",
+        seed=None,
     ):
         self.X_train = X_train
         self.Y_train = Y_train
@@ -222,8 +157,9 @@ class ActiveLearningModel:
         self.epochs = epochs
         self.query_strategy = query_strategy
         self.batch_size = batch_size
+        self.architecture = architecture
         self.results_dir = results_dir
-        self.model = make_mlp_pipeline(X_train.shape[1], epochs=epochs)
+        self.model = make_backend(architecture, X_train, epochs=epochs, seed=seed)
         self.test_performance = None
         self.validation_performance = None
         self.run()

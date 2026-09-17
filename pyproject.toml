@@ -26,6 +26,9 @@ dependencies = [
 cpu = ["torch==2.14.0"]
 gpu = ["torch==2.14.0"]
 test = ["pytest"]
+graph = [
+    "torch-geometric>=2.8.0.post1",
+]
 
 [project.scripts]
 almolml = "almolml.cli:main"

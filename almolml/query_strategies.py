@@ -7,12 +7,14 @@ X_training=None, y_training=None, batch_size=5) -> np.ndarray([idx, ...])`.
 `y_training` (the true labels of the currently labeled set) is only used
 by the DIRECT strategies; the others ignore it.
 
-`estimator` is the (scaler, classifier) sklearn Pipeline built by
-make_mlp_pipeline in models.py; every strategy except entropy_query and
-batch_direct_query's entropy fallback reaches into its "mlp" step's
-underlying PyTorch module (`.module_`, populated by skorch after
-fitting), so they only work with that specific pipeline shape -- they are
-not generic like entropy_query.
+`estimator` is one of the architecture backends in model_backends.py
+(TorchMLPBackend, RandomForestBackend, GNNBackend). entropy_query and
+direct_query/batch_direct_query only need `predict_proba`, so they work
+with any of them (or, in principle, any sklearn-shaped estimator).
+bald_query/batch_bald_query and core_set_query/batch_core_set_query
+additionally need `mc_probabilities`/`embed`, which every backend
+implements -- see model_backends.py's module docstring for what those mean
+for each architecture.
 
 References:
 - entropy_query: classic uncertainty sampling (Lewis & Gale, SIGIR 1994).
@@ -37,7 +39,6 @@ References:
 """
 
 import numpy as np
-import torch
 
 
 def entropy_query(estimator, X_pool, X_training=None, y_training=None):
@@ -53,22 +54,14 @@ def entropy_query(estimator, X_pool, X_training=None, y_training=None):
 
 
 def _mc_dropout_probabilities(estimator, X, n_samples):
-    """`n_samples` stochastic forward passes (dropout left ON) through the
-    torch classifier at the end of `estimator`, an sklearn Pipeline of
-    (scaler, classifier). Returns P(class=1) with shape (n_samples, len(X)).
+    """`n_samples` "MC" probability estimates for each row of `X`, from
+    whichever architecture backend `estimator` is (see model_backends.py):
+    MC-Dropout stochastic forward passes for the neural-net backends,
+    per-tree predictions for the Random Forest backend. Returns P(class=1)
+    with shape (n_samples, len(X)) either way -- what bald_scores expects,
+    regardless of what produced the samples.
     """
-    classifier = estimator.named_steps["mlp"]
-    X_scaled = estimator.named_steps["scaler"].transform(X).astype(np.float32)
-    X_tensor = torch.as_tensor(X_scaled, dtype=torch.float32)
-
-    module = classifier.module_
-    module.train()  # keep dropout active even though we're not training
-    with torch.no_grad():
-        probs = [
-            torch.sigmoid(module(X_tensor)).numpy() for _ in range(n_samples)
-        ]
-    module.eval()
-    return np.stack(probs, axis=0)
+    return estimator.mc_probabilities(X, n_samples)
 
 
 def _binary_entropy(p):
@@ -173,17 +166,12 @@ def batch_bald_query(
 
 
 def _embed(estimator, X):
-    """Penultimate-layer representation from the torch classifier at the
-    end of `estimator`: the model's learned feature space.
+    """A representation space for `X` from whichever architecture backend
+    `estimator` is (see model_backends.py): the learned penultimate-layer
+    representation for the neural-net backends, a per-tree leaf-index code
+    for the Random Forest backend.
     """
-    classifier = estimator.named_steps["mlp"]
-    X_scaled = estimator.named_steps["scaler"].transform(X).astype(np.float32)
-    X_tensor = torch.as_tensor(X_scaled, dtype=torch.float32)
-
-    module = classifier.module_
-    module.eval()
-    with torch.no_grad():
-        return module.embed(X_tensor).numpy()
+    return estimator.embed(X)
 
 
 def farthest_point_index(pool_embed, labeled_embed):

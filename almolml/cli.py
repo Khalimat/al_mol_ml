@@ -66,6 +66,18 @@ def build_parser():
         "> 1 with a single-point strategy raises an error.",
     )
     parser.add_argument(
+        "--architecture",
+        choices=["mlp", "rf", "gnn"],
+        default="mlp",
+        help="Model architecture backend (see almolml/model_backends.py): "
+        "'mlp' (default, the original torch MLP on Morgan fingerprint + "
+        "RDKit descriptors), 'rf' (Random Forest on the same features), or "
+        "'gnn' (a graph neural network over the molecular graph directly -- "
+        "requires the 'graph' extra, e.g. `uv sync --extra cpu --extra "
+        "graph`). Applies to both the non-active-learning baseline "
+        "(TorchMLPModel) and the active-learning model.",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite an existing results directory for this study without prompting. "
@@ -78,6 +90,26 @@ def build_parser():
         help="Base random seed. Iteration i of the run is seeded with seed + i, so "
         "each iteration is an independent, reproducible draw rather than inheriting "
         "whatever RNG state prior calls happened to leave behind (default: 0).",
+    )
+    parser.add_argument(
+        "--test_split_r",
+        type=float,
+        default=0.2,
+        help="Only used for a dataset with no separately curated external test "
+        "file (every dataset added by the generalization study -- see "
+        "docs/generalization_study_design.md): the fraction of the whole "
+        "dataset held out as the test set before the train/validation split "
+        "(default: 0.2). Ignored for the original SCAM datasets, which use "
+        "test_DLS.csv instead.",
+    )
+    parser.add_argument(
+        "--validation_split_r",
+        type=float,
+        default=0.3,
+        help="Only used for a dataset with no separately curated external test "
+        "file: the fraction of the remaining (non-test) data held out as the "
+        "validation set (default: 0.3, matching the splitters' own default "
+        "test_split_r). Ignored for the original SCAM datasets.",
     )
     return parser
 
@@ -94,6 +126,9 @@ def main():
         max_queries=args.max_queries,
         al_strategy=args.al_strategy,
         batch_size=args.batch_size,
+        architecture=args.architecture,
         overwrite=args.overwrite,
+        test_split_r=args.test_split_r,
+        validation_split_r=args.validation_split_r,
         seed=args.seed,
     )
