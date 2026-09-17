@@ -25,7 +25,11 @@ object)` sidesteps that inspection entirely.
 import numpy as np
 import torch
 from rdkit import Chem
-from torch_geometric.data import Data
+
+try:
+    from torch_geometric.data import Data
+except ImportError:  # pragma: no cover - exercised only without the 'graph' extra
+    Data = None
 
 # Common organic elements first, with an explicit "other" bucket so an
 # unexpected element degrades gracefully instead of raising.
@@ -75,6 +79,11 @@ def mol_to_graph(mol):
     """One rdkit Mol -> one torch_geometric.data.Data (undirected: each
     bond contributes both (i, j) and (j, i) edges).
     """
+    if Data is None:
+        raise ImportError(
+            "The GNN architecture requires torch_geometric. Install the "
+            "'graph' extra (e.g. `uv sync --extra cpu --extra graph`)."
+        )
     atom_features = np.stack([_atom_features(atom) for atom in mol.GetAtoms()])
 
     edges = []
