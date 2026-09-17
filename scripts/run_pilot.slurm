@@ -48,6 +48,23 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
 
+# Keep uv's package cache inside the project dir instead of the default
+# $HOME/.cache/uv -- home directories on this cluster have a small quota,
+# and the gpu/graph extras (torch etc.) pull down several GB of packages.
+export UV_CACHE_DIR="$SLURM_SUBMIT_DIR/.uv-cache"
+
+# sbatch batch scripts don't reliably pick up PATH additions from your
+# login shell's rc files (~/.bashrc etc. often aren't sourced for
+# non-interactive jobs), so `uv` can be "not found" here even though it
+# works interactively. Add its default install locations explicitly.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+if ! command -v uv >/dev/null 2>&1; then
+    echo "error: 'uv' not found on PATH (checked \$HOME/.local/bin, \$HOME/.cargo/bin, and \$PATH)." >&2
+    echo "Install it first, e.g.: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    echo "https://docs.astral.sh/uv/getting-started/installation/" >&2
+    exit 1
+fi
+
 # uv manages its own Python + venv, so no module-load for Python itself is
 # needed unless the compute nodes block outbound network access -- in that
 # case, install uv system-wide (or in $HOME) before submitting, per

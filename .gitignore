@@ -8,6 +8,7 @@ __pycache__/
 *.egg-info/
 .claude/
 .venv/
+.uv-cache/
 *.lock#
 .~lock.*#
 logs/
